@@ -1,42 +1,5 @@
 #include "DMD2.h"
 
-const int PIX_WIDTH = 32; // per display
-const int PIX_HEIGHT = 16;
-
-#define TOTAL_PANELS (width*height)
-#define BITMAP_SZ (TOTAL_PANELS * (PIX_WIDTH * PIX_HEIGHT / 8))
-#define TOTAL_WIDTH (width * PIX_WIDTH)
-#define TOTAL_HEIGHT (height * PIX_HEIGHT)
-
-/* pixel width across all panels when laid end to end for scanning */
-#define UNIFIED_WIDTH (TOTAL_PANELS * PIX_WIDTH)
-
-// Clamp a value between two limits
-template<typename T> static inline void clamp(T &value, T lower, T upper) {
-  if(value < lower)
-    value = lower;
-  else if(value > upper)
-    value = upper;
-}
-
-#define CLAMP_XY(X, Y) do { \
-  clamp(X, 0, TOTAL_WIDTH); \
-  clamp(Y, 0, TOTAL_HEIGHT); \
-} while(0)
-
-// Swap A & B "in place" (well, with a temp variable!)
-template<typename T> static inline void swap(T &a, T &b)
-{
-  T tmp(a); a=b; b=tmp;
-}
-
-// Check a<=b, and swap them otherwise
-template<typename T> static inline void ensureOrder(T &a, T &b)
-{
-  if(b<a) swap(a,b);
-}
-
-
 SPIDMD::SPIDMD(byte panelsWide, byte panelsHigh)
   : BaseDMD(panelsWide, panelsHigh, 9, 6, 7, 8)
 {
@@ -50,14 +13,15 @@ SPIDMD::SPIDMD(byte panelsWide, byte panelsHigh, byte pin_noe, byte pin_a, byte 
 
 void SPIDMD::initialize()
 {
-  BaseDMD::initialize();
+  // Configure SPI before initialising the base DMD
   SPI.begin();
   SPI.setBitOrder(MSBFIRST);
   SPI.setDataMode(SPI_MODE0);	// CPOL=0, CPHA=0
   SPI.setClockDivider(SPI_CLOCK_DIV16); // Try DIV4 soon
+  BaseDMD::initialize();
 }
 
-void SPIDMD::writeSPIData(uint8_t *rows[4], const int rowsize)
+void SPIDMD::writeSPIData(volatile uint8_t *rows[4], const int rowsize)
 {
   for(int i = 0; i < rowsize; i++) {
     SPI.transfer(*(rows[3]++));
@@ -74,9 +38,9 @@ void BaseDMD::scanDisplay()
 
   // Rows are send out in 4 blocks of 4 (interleaved), across all panels
 
-  int rowsize = UNIFIED_WIDTH / 8; // in bytes
+  int rowsize = unified_width() / 8; // in bytes
 
-  uint8_t *rows[4] = { // Scanning out 4 interleaved rows
+  volatile uint8_t *rows[4] = { // Scanning out 4 interleaved rows
     bitmap + (scan_row + 0) * rowsize,
     bitmap + (scan_row + 4) * rowsize,
     bitmap + (scan_row + 8) * rowsize,
@@ -118,27 +82,26 @@ SoftDMD::SoftDMD(byte panelsWide, byte panelsHigh, byte pin_noe, byte pin_a, byt
 
 void SoftDMD::initialize()
 {
-  BaseDMD::initialize();
-
   digitalWrite(pin_clk, LOW);
   pinMode(pin_clk, OUTPUT);
 
   digitalWrite(pin_r_data, LOW);
   pinMode(pin_r_data, OUTPUT);
+  BaseDMD::initialize();
 }
 
 
 inline void SoftDMD::softSPITransfer(uint8_t data) {
   // MSB first, data captured on rising edge
   for(uint8_t bit = 0; bit < 8; bit++) {
-    digitalWrite(pin_r_data, (data & (1<<7)) ? HIGH : LOW);
+    digitalWrite(pin_r_data, (data & (1<<7))  ? HIGH : LOW);
     digitalWrite(pin_clk, HIGH);
     data <<= 1;
     digitalWrite(pin_clk, LOW);
   }
 }
 
-void SoftDMD::writeSPIData(uint8_t *rows[4], const int rowsize)
+void SoftDMD::writeSPIData(volatile uint8_t *rows[4], const int rowsize)
 {
   for(int i = 0; i < rowsize; i++) {
     softSPITransfer(*(rows[3]++));
@@ -159,7 +122,7 @@ BaseDMD::BaseDMD(byte panelsWide, byte panelsHigh, byte pin_noe, byte pin_a, byt
     default_pins(pin_noe == 9 && pin_a == 6 && pin_b == 7 && pin_sck == 8),
     pin_other_cs(-1)
 {
-  bitmap = (uint8_t *)malloc(BITMAP_SZ);
+  bitmap = (uint8_t *)malloc(bitmap_bytes());
 }
 
 void BaseDMD::initialize()
@@ -177,42 +140,37 @@ void BaseDMD::initialize()
   pinMode(pin_sck, OUTPUT);
 
   clearScreen();
+  scanDisplay();
 }
 
 // Set a single LED on or off
 void BaseDMD::setPixel(unsigned int x, unsigned int y, const bool on)
 {
-  if(x >= TOTAL_WIDTH || y >= TOTAL_HEIGHT)
+  if(x >= total_width() || y >= total_height())
      return;
 
   // Panels seen as stretched out in a row for purposes of finding index
-  uint8_t panel = (x/PIX_WIDTH) + (width * (y/PIX_HEIGHT));
-  x = (x % PIX_WIDTH)  + (panel * PIX_WIDTH);
-  y = y % PIX_HEIGHT;
+  uint8_t panel = (x/WIDTH_PIXELS) + (width * (y/HEIGHT_PIXELS));
+  x = (x % WIDTH_PIXELS)  + (panel * WIDTH_PIXELS);
+  y = y % HEIGHT_PIXELS;
 
-  int byte_idx = x / 8 + (y * UNIFIED_WIDTH / 8);
+  int byte_idx = x / 8 + (y * unified_width() / 8);
   // TODO: investigate the lookup table optimisation from original DMD
+  uint8_t bit = 1 << (7 - (x & 0x07));
   if(on)
-    bitmap[byte_idx] &= ~(1 << (7 - (x & 0x07)));
+    bitmap[byte_idx] &= ~bit;
   else
-    bitmap[byte_idx] |= (1 << (7 - (x & 0x07)));
+    bitmap[byte_idx] |= bit;
 }
 
 // Set the entire screen
 void BaseDMD::fillScreen(bool on)
 {
-  for(int b = 0; b < BITMAP_SZ; b++) bitmap[b] = on ? 0 : 0xFF;
-  //memset(bitmap, on ? 0 : 0xFF, BITMAP_SZ);
+  memset((void *)bitmap, on ? 0 : 0xFF, bitmap_bytes());
 }
 
 void BaseDMD::drawLine(int x1, int y1, int x2, int y2, bool on)
 {
-  // Note: hard clamping here means that diagonal lines that exceed the
-  // limits of the display will be drawn with different angles to if they
-  // were really drawn to those limits
-  CLAMP_XY(x1, y1);
-  CLAMP_XY(x2, y2);
-
   int dy = y2 - y1;
   int dx = x2 - x1;
   int stepx, stepy;
@@ -229,12 +187,13 @@ void BaseDMD::drawLine(int x1, int y1, int x2, int y2, bool on)
   } else {
     stepx = 1;
   }
-  dy <<= 1;			// dy is now 2*dy
-  dx <<= 1;			// dx is now 2*dx
+  dy = dy * 2;
+  dx = dx * 2;
+
 
   setPixel(x1, y1, on);
   if (dx > dy) {
-    int fraction = dy - (dx >> 1);	// same as 2*dy - dx
+    int fraction = dy - (dx / 2);	// same as 2*dy - dx
     while (x1 != x2) {
       if (fraction >= 0) {
         y1 += stepy;
@@ -245,7 +204,7 @@ void BaseDMD::drawLine(int x1, int y1, int x2, int y2, bool on)
       setPixel(x1, y1, on);
     }
   } else {
-    int fraction = dx - (dy >> 1);
+    int fraction = dx - (dy / 2);
     while (y1 != y2) {
       if (fraction >= 0) {
         x1 += stepx;
@@ -258,7 +217,7 @@ void BaseDMD::drawLine(int x1, int y1, int x2, int y2, bool on)
   }
 }
 
-void BaseDMD::drawCircle(int xCenter, int yCenter, int radius, bool on)
+void BaseDMD::drawCircle(unsigned int xCenter, unsigned int yCenter, int radius, bool on)
 {
   // Bresenham's circle drawing algorithm
   int x = -radius;
@@ -275,7 +234,7 @@ void BaseDMD::drawCircle(int xCenter, int yCenter, int radius, bool on)
   }
 }
 
-void BaseDMD::drawBox(int x1, int y1, int x2, int y2, bool on)
+void BaseDMD::drawBox(unsigned int x1, unsigned int y1, unsigned int x2, unsigned int y2, bool on)
 {
   drawLine(x1, y1, x2, y1, on);
   drawLine(x2, y1, x2, y2, on);
@@ -283,9 +242,10 @@ void BaseDMD::drawBox(int x1, int y1, int x2, int y2, bool on)
   drawLine(x1, y2, x1, y1, on);
 }
 
-void BaseDMD::drawFilledBox(int x1, int y1, int x2, int y2, bool on)
+void BaseDMD::drawFilledBox(unsigned int x1, unsigned int y1, unsigned int x2, unsigned int y2, bool on)
 {
-  for (int b = x1; b <= x2; b++) {
+  for (unsigned int b = x1; b <= x2; b++) {
     drawLine(b, y1, b, y2, on);
   }
 }
+
