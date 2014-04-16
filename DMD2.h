@@ -11,11 +11,19 @@
 #include "Print.h"
 #include "SPI.h"
 
+enum DMDTestPattern {
+  PATTERN_ALT_0,
+  PATTERN_ALT_1,
+  PATTERN_STRIPE_0,
+  PATTERN_STRIPE_1
+};
+
 class BaseDMD
 {
 protected:
   BaseDMD(byte panelsWide, byte panelsHigh, byte pin_noe, byte pin_a, byte pin_b, byte pin_sck);
 
+  virtual void writeSPIData(uint8_t *rows[4], const int rowsize) = 0;
 public:
   virtual void initialize();
 
@@ -23,10 +31,10 @@ public:
      pixels. Call often, or use begin()/end() to automatically scan
      the display (see below.)
   */
-  virtual void scanDisplay() = 0;
+  virtual void scanDisplay();
 
   /* Automatically start/stop scanning of the display output at
-     flicker-free speed.  Setting this option will use Timer1 on
+     flicker-free speed.  Setting this option will use Timer2 on
      AVR-based Arduinos or Timer3 on Arduino Due.
   */
   void begin();
@@ -37,7 +45,15 @@ public:
 
   // Fill the screen on or off
   void fillScreen(bool on);
-  void clearScreen() { fillScreen(false); };
+  inline void clearScreen() { fillScreen(false); };
+
+  // Drawing primitives
+  void drawLine(int x1, int y1, int x2, int y2, bool on = true);
+  void drawCircle(int xCenter, int yCenter, int radius, bool on = true);
+  void drawBox(int x1, int y1, int x2, int y2, bool on = true);
+  void drawFilledBox(int x1, int y1, int x2, int y2, bool on = true);
+  void drawTestPattern(DMDTestPattern pattern);
+
 
 protected:
   uint8_t *bitmap;
@@ -49,6 +65,9 @@ protected:
   byte pin_a;
   byte pin_b;
   byte pin_sck;
+
+  bool default_pins; // shortcut for default pin behaviour, can use macro writes
+  byte pin_other_cs; // CS pin to check before SPI behaviour, only makes sense for SPIDMD
 };
 
 class SPIDMD : public BaseDMD
@@ -62,14 +81,12 @@ public:
   SPIDMD(byte panelsWide, byte panelsHigh, byte pin_noe, byte pin_a, byte pin_b, byte pin_sck);
 
   void initialize();
-  void scanDisplay();
 
   /* Set the "other CS" pin that is checked for in use before scanning the DMD */
   void setOtherCS(byte pin_other_cs) { this->pin_other_cs = pin_other_cs; }
 
-private:
-  bool default_pins; // shortcut for default pin behaviour, can use macro writes
-  byte pin_other_cs;
+protected:
+  void writeSPIData(uint8_t *rows[4], const int rowsize);
 };
 
 class SoftDMD : public BaseDMD
@@ -80,9 +97,11 @@ public:
           byte pin_clk, byte pin_r_data);
 
   void initialize();
-  void scanDisplay();
 
+protected:
+  void writeSPIData(uint8_t *rows[4], const int rowsize);
 private:
+  inline void softSPITransfer(uint8_t byte) __attribute__((always_inline));
   byte pin_clk;
   byte pin_r_data;
 };
