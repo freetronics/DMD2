@@ -57,11 +57,8 @@ void BaseDMD::scanDisplay()
 
   writeSPIData(rows, rowsize);
 
-  volatile reg_t *port_noe = portOutputRegister(digitalPinToPort(pin_noe));
-  reg_t mask_noe = digitalPinToBitMask(pin_noe);
-
   // TODO: Do version for default_pins
-  *port_noe &= ~mask_noe;
+  digitalWrite(pin_noe, LOW);
   digitalWrite(pin_sck, HIGH); // Latch DMD shift register output
   digitalWrite(pin_sck, LOW); // (Deliberately left as digitalWrite to ensure decent latching time)
 
@@ -73,7 +70,11 @@ void BaseDMD::scanDisplay()
   digitalWrite(pin_a, scan_row & 0x01);
   digitalWrite(pin_b, scan_row & 0x02);
   scan_row = (scan_row + 1) % 4;
-  *port_noe |= mask_noe;
+
+  if(brightness == 255)
+    digitalWrite(pin_noe, HIGH);
+  else
+    analogWrite(pin_noe, brightness);
 }
 
 SoftDMD::SoftDMD(byte panelsWide, byte panelsHigh)
@@ -139,14 +140,16 @@ BaseDMD::BaseDMD(byte panelsWide, byte panelsHigh, byte pin_noe, byte pin_a, byt
     pin_b(pin_b),
     pin_sck(pin_sck),
     default_pins(pin_noe == 9 && pin_a == 6 && pin_b == 7 && pin_sck == 8),
-    pin_other_cs(-1)
+    pin_other_cs(-1),
+    font(0),
+    brightness(255)
 {
   bitmap = (uint8_t *)malloc(bitmap_bytes());
 }
 
 void BaseDMD::initialize()
 {
-  digitalWrite(pin_noe, HIGH);
+  digitalWrite(pin_noe, LOW);
   pinMode(pin_noe, OUTPUT);
 
   digitalWrite(pin_a, LOW);

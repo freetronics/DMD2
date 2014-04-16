@@ -104,6 +104,7 @@ public:
   unsigned int stringWidth(const char *bChars, const uint8_t *font = NULL);
   unsigned int stringWidth(const String &str, const uint8_t *font = NULL);
 
+  inline void setBrightness(byte level) { this->brightness = level; };
 
 protected:
   volatile uint8_t *bitmap;
@@ -120,6 +121,7 @@ protected:
   byte pin_other_cs; // CS pin to check before SPI behaviour, only makes sense for SPIDMD
 
   uint8_t *font;
+  uint8_t brightness;
 
   inline unsigned int total_panels() { return width * height; };
   inline size_t bitmap_bytes() { return total_panels() * WIDTH_PIXELS * HEIGHT_PIXELS / 8; };
