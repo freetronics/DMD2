@@ -165,7 +165,6 @@ public:
 protected:
   void writeSPIData(volatile uint8_t *rows[4], const int rowsize);
 private:
-  inline void softSPITransfer(uint8_t byte) __attribute__((always_inline));
   byte pin_clk;
   byte pin_r_data;
 };

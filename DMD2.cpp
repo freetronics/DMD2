@@ -1,5 +1,13 @@
 #include "DMD2.h"
 
+// Port register types
+#ifdef __AVR__
+typedef uint8_t reg_t;
+#else
+// ARM
+typedef uint32_t reg_t;
+#endif
+
 SPIDMD::SPIDMD(byte panelsWide, byte panelsHigh)
   : BaseDMD(panelsWide, panelsHigh, 9, 6, 7, 8)
 {
@@ -49,10 +57,13 @@ void BaseDMD::scanDisplay()
 
   writeSPIData(rows, rowsize);
 
+  volatile reg_t *port_noe = portOutputRegister(digitalPinToPort(pin_noe));
+  reg_t mask_noe = digitalPinToBitMask(pin_noe);
+
   // TODO: Do version for default_pins
-  digitalWrite(pin_noe, LOW);
+  *port_noe &= ~mask_noe;
   digitalWrite(pin_sck, HIGH); // Latch DMD shift register output
-  digitalWrite(pin_sck, LOW);
+  digitalWrite(pin_sck, LOW); // (Deliberately left as digitalWrite to ensure decent latching time)
 
   // A, B determine which set of interleaved rows we are multiplexing on
   // 0 = 1,5,9,13
@@ -62,7 +73,7 @@ void BaseDMD::scanDisplay()
   digitalWrite(pin_a, scan_row & 0x01);
   digitalWrite(pin_b, scan_row & 0x02);
   scan_row = (scan_row + 1) % 4;
-  digitalWrite(pin_noe, HIGH);
+  *port_noe |= mask_noe;
 }
 
 SoftDMD::SoftDMD(byte panelsWide, byte panelsHigh)
@@ -91,23 +102,31 @@ void SoftDMD::initialize()
 }
 
 
-inline void SoftDMD::softSPITransfer(uint8_t data) {
+static inline __attribute__((always_inline)) void softSPITransfer(uint8_t data, volatile reg_t *data_port, reg_t data_mask, volatile reg_t *clk_port, reg_t clk_mask) {
   // MSB first, data captured on rising edge
   for(uint8_t bit = 0; bit < 8; bit++) {
-    digitalWrite(pin_r_data, (data & (1<<7))  ? HIGH : LOW);
-    digitalWrite(pin_clk, HIGH);
+    if(data & (1<<7))
+      *data_port |= data_mask;
+    else
+      *data_port &= ~data_mask;
+    *clk_port |= clk_mask;
     data <<= 1;
-    digitalWrite(pin_clk, LOW);
+    *clk_port &= ~clk_mask;
   }
 }
 
 void SoftDMD::writeSPIData(volatile uint8_t *rows[4], const int rowsize)
 {
+  volatile reg_t *port_clk = portOutputRegister(digitalPinToPort(pin_clk));
+  reg_t mask_clk = digitalPinToBitMask(pin_clk);
+  volatile reg_t *port_r_data = portOutputRegister(digitalPinToPort(pin_r_data));
+  reg_t mask_r_data = digitalPinToBitMask(pin_r_data);
+
   for(int i = 0; i < rowsize; i++) {
-    softSPITransfer(*(rows[3]++));
-    softSPITransfer(*(rows[2]++));
-    softSPITransfer(*(rows[1]++));
-    softSPITransfer(*(rows[0]++));
+    softSPITransfer(*(rows[3]++), port_r_data, mask_r_data, port_clk, mask_clk);
+    softSPITransfer(*(rows[2]++), port_r_data, mask_r_data, port_clk, mask_clk);
+    softSPITransfer(*(rows[1]++), port_r_data, mask_r_data, port_clk, mask_clk);
+    softSPITransfer(*(rows[0]++), port_r_data, mask_r_data, port_clk, mask_clk);
   }
 }
 
