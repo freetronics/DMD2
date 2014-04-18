@@ -44,8 +44,11 @@ enum DMDTestPattern {
   PATTERN_STRIPE_1
 };
 
+class DMD_TextBox;
+
 class BaseDMD
 {
+  friend class DMD_TextBox;
 protected:
   BaseDMD(byte panelsWide, byte panelsHigh, byte pin_noe, byte pin_a, byte pin_b, byte pin_sck);
 
@@ -69,6 +72,14 @@ public:
 
   // Set a single LED on or off
   void setPixel(unsigned int x, unsigned int y, const bool on);
+
+  // Get status of a single LED
+  bool getPixel(unsigned int x, unsigned int y);
+
+  // Move a region of pixels from one area to another
+  void movePixels(unsigned int from_x, unsigned int from_y,
+                  unsigned int to_x, unsigned int to_y,
+                  unsigned int width, unsigned int height);
 
   // Fill the screen on or off
   void fillScreen(bool on);
@@ -131,6 +142,9 @@ protected:
   inline unsigned int total_height() { return height * HEIGHT_PIXELS; };
   inline unsigned int unified_width() { return total_panels() * WIDTH_PIXELS; }; // width of all displays as seen by controller
 
+  inline int pixelToBitmapIndex(unsigned int x, unsigned int y);
+  inline int pixelToBitmask(unsigned int x); 
+
   template<typename T> inline void clamp_xy(T &x, T&y) {
     clamp(x, (T)0, total_width()-1);
     clamp(y, (T)0, total_height()-1);
@@ -170,6 +184,36 @@ protected:
 private:
   byte pin_clk;
   byte pin_r_data;
+};
+
+class DMD_TextBox : public Print {
+public:
+  DMD_TextBox(BaseDMD &dmd, int left = 0, int top = 0, int width = 0, int height = 0);
+  virtual size_t write(uint8_t);
+  void clear();
+  void reset();
+  void invertDisplay() { inverted = !inverted; }
+private:
+  BaseDMD &dmd;
+  bool inverted;
+  int left;
+  int top;
+  int width;
+  int height;
+  int16_t cur_x;
+  int16_t cur_y;
+  bool pending_newline;
+  void scrollY(uint8_t fontHeight);
+  void scrollX(uint8_t charWidth);
+};
+
+// Six byte header at beginning of FontCreator font structure, stored in PROGMEM
+struct FontHeader {
+  uint16_t size;
+  uint8_t fixedWidth;
+  uint8_t height;
+  uint8_t firstChar;
+  uint8_t charCount;
 };
 
 #endif

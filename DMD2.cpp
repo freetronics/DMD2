@@ -163,25 +163,79 @@ void BaseDMD::beginNoAuto()
   scanDisplay();
 }
 
+inline int BaseDMD::pixelToBitmapIndex(unsigned int x, unsigned int y)
+{
+  // Panels seen as stretched out in a row for purposes of finding index
+  uint8_t panel = (x/WIDTH_PIXELS) + (width * (y/HEIGHT_PIXELS));
+  x = (x % WIDTH_PIXELS)  + (panel * WIDTH_PIXELS);
+  y = y % HEIGHT_PIXELS;
+  return x / 8 + (y * unified_width() / 8);
+}
+
+inline int BaseDMD::pixelToBitmask(unsigned int x)
+{
+  // TODO: investigate the lookup table optimisation from original DMD
+  return 1 << (7 - (x & 0x07));
+}
+
+
 // Set a single LED on or off
 void BaseDMD::setPixel(unsigned int x, unsigned int y, const bool on)
 {
   if(x >= total_width() || y >= total_height())
      return;
 
-  // Panels seen as stretched out in a row for purposes of finding index
-  uint8_t panel = (x/WIDTH_PIXELS) + (width * (y/HEIGHT_PIXELS));
-  x = (x % WIDTH_PIXELS)  + (panel * WIDTH_PIXELS);
-  y = y % HEIGHT_PIXELS;
-
-  int byte_idx = x / 8 + (y * unified_width() / 8);
-  // TODO: investigate the lookup table optimisation from original DMD
-  uint8_t bit = 1 << (7 - (x & 0x07));
+  int byte_idx = pixelToBitmapIndex(x,y);
+  int bit = pixelToBitmask(x);
   if(on)
     bitmap[byte_idx] &= ~bit;
   else
     bitmap[byte_idx] |= bit;
 }
+
+
+bool BaseDMD::getPixel(unsigned int x, unsigned int y)
+{
+  if(x >= total_width() || y >= total_height())
+     return false;
+  int byte_idx = pixelToBitmapIndex(x,y);
+  int bit = pixelToBitmask(x);
+  bool res = !(bitmap[byte_idx] & bit);
+  return res;
+}
+
+void BaseDMD::movePixels(unsigned int from_x, unsigned int from_y,
+                         unsigned int to_x, unsigned int to_y,
+                         unsigned int width, unsigned int height)
+{
+  // NB: This implementation is pretty slow and uses too much RAM when non-overlapping
+  // regions are moved. Would benefit from a rewrite.
+
+  if(from_x >= total_width() || from_y >= total_height()
+     || to_x >= total_width() || to_y >= total_height())
+     return;
+
+  uint8_t pixels[(width + 7) / 8][height];
+  memset(pixels, 0, sizeof(pixels));
+
+  for(unsigned int y = 0; y < height; y++) {
+    for(unsigned int x = 0; x < width; x++) {
+      unsigned int bit = x % 8;
+      if(getPixel(from_x+x, from_y+y)) {
+        pixels[x/8][y] |= (1<<bit);
+        setPixel(from_x+x,from_y+y,false);
+      }
+    }
+  }
+
+  for(unsigned int y = 0; y < height; y++) {
+    for(unsigned int x = 0; x < width; x++) {
+      unsigned int bit = x % 8;
+      setPixel(x+to_x,y+to_y, pixels[x/8][y] & (1<<bit));
+    }
+  }
+}
+
 
 // Set the entire screen
 void BaseDMD::fillScreen(bool on)
@@ -268,4 +322,3 @@ void BaseDMD::drawFilledBox(unsigned int x1, unsigned int y1, unsigned int x2, u
     drawLine(b, y1, b, y2, on);
   }
 }
-
