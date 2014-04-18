@@ -51,8 +51,6 @@ protected:
 
   virtual void writeSPIData(volatile uint8_t *rows[4], const int rowsize) = 0;
 public:
-  virtual void initialize();
-
   /* Refresh the display by manually scanning out current array of
      pixels. Call often, or use begin()/end() to automatically scan
      the display (see below.)
@@ -60,11 +58,14 @@ public:
   virtual void scanDisplay();
 
   /* Automatically start/stop scanning of the display output at
-     flicker-free speed.  Setting this option will use Timer2 on
-     AVR-based Arduinos or Timer3 on Arduino Due.
+     flicker-free speed.  Setting this option will use Timer1 on
+     AVR-based Arduinos or Timer7 on Arduino Due.
   */
   void begin();
   void end();
+
+  /* Start display, but use manual scanning */
+  virtual void beginNoAuto();
 
   // Set a single LED on or off
   void setPixel(unsigned int x, unsigned int y, const bool on);
@@ -118,7 +119,7 @@ protected:
   byte pin_sck;
 
   bool default_pins; // shortcut for default pin behaviour, can use macro writes
-  byte pin_other_cs; // CS pin to check before SPI behaviour, only makes sense for SPIDMD
+  int8_t pin_other_cs; // CS pin to check before SPI behaviour, only makes sense for SPIDMD
 
   uint8_t *font;
   uint8_t brightness;
@@ -146,7 +147,7 @@ public:
   /* Create a DMD display using a custom pinout for all the non-SPI pins (SPI pins set by hardware) */
   SPIDMD(byte panelsWide, byte panelsHigh, byte pin_noe, byte pin_a, byte pin_b, byte pin_sck);
 
-  void initialize();
+  void beginNoAuto();
 
   /* Set the "other CS" pin that is checked for in use before scanning the DMD */
   void setOtherCS(byte pin_other_cs) { this->pin_other_cs = pin_other_cs; }
@@ -162,7 +163,7 @@ public:
   SoftDMD(byte panelsWide, byte panelsHigh, byte pin_noe, byte pin_a, byte pin_b, byte pin_sck,
           byte pin_clk, byte pin_r_data);
 
-  void initialize();
+  void beginNoAuto();
 
 protected:
   void writeSPIData(volatile uint8_t *rows[4], const int rowsize);

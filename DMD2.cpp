@@ -1,12 +1,7 @@
 #include "DMD2.h"
 
-// Port register types
-#ifdef __AVR__
-typedef uint8_t reg_t;
-#else
-// ARM
-typedef uint32_t reg_t;
-#endif
+// Port registers are same size as a pointer (16-bit on AVR, 32-bit on ARM)
+typedef intptr_t port_reg_t;
 
 SPIDMD::SPIDMD(byte panelsWide, byte panelsHigh)
   : BaseDMD(panelsWide, panelsHigh, 9, 6, 7, 8)
@@ -19,14 +14,18 @@ SPIDMD::SPIDMD(byte panelsWide, byte panelsHigh, byte pin_noe, byte pin_a, byte 
 {
 }
 
-void SPIDMD::initialize()
+void SPIDMD::beginNoAuto()
 {
   // Configure SPI before initialising the base DMD
   SPI.begin();
   SPI.setBitOrder(MSBFIRST);
   SPI.setDataMode(SPI_MODE0);	// CPOL=0, CPHA=0
-  SPI.setClockDivider(SPI_CLOCK_DIV16); // Try DIV4 soon
-  BaseDMD::initialize();
+#ifdef __AVR__
+  SPI.setClockDivider(SPI_CLOCK_DIV4); // 4MHz clock
+#else
+  SPI.setClockDivider(20); // 4.2MHz on Due
+#endif
+  BaseDMD::beginNoAuto();
 }
 
 void SPIDMD::writeSPIData(volatile uint8_t *rows[4], const int rowsize)
@@ -43,7 +42,6 @@ void BaseDMD::scanDisplay()
 {
   if(pin_other_cs >= 0 && digitalRead(pin_other_cs) != HIGH)
     return;
-
   // Rows are send out in 4 blocks of 4 (interleaved), across all panels
 
   int rowsize = unified_width() / 8; // in bytes
@@ -92,18 +90,18 @@ SoftDMD::SoftDMD(byte panelsWide, byte panelsHigh, byte pin_noe, byte pin_a, byt
 {
 }
 
-void SoftDMD::initialize()
+void SoftDMD::beginNoAuto()
 {
   digitalWrite(pin_clk, LOW);
   pinMode(pin_clk, OUTPUT);
 
   digitalWrite(pin_r_data, LOW);
   pinMode(pin_r_data, OUTPUT);
-  BaseDMD::initialize();
+  BaseDMD::beginNoAuto();
 }
 
 
-static inline __attribute__((always_inline)) void softSPITransfer(uint8_t data, volatile reg_t *data_port, reg_t data_mask, volatile reg_t *clk_port, reg_t clk_mask) {
+static inline __attribute__((always_inline)) void softSPITransfer(uint8_t data, volatile port_reg_t *data_port, port_reg_t data_mask, volatile port_reg_t *clk_port, port_reg_t clk_mask) {
   // MSB first, data captured on rising edge
   for(uint8_t bit = 0; bit < 8; bit++) {
     if(data & (1<<7))
@@ -118,10 +116,10 @@ static inline __attribute__((always_inline)) void softSPITransfer(uint8_t data, 
 
 void SoftDMD::writeSPIData(volatile uint8_t *rows[4], const int rowsize)
 {
-  volatile reg_t *port_clk = portOutputRegister(digitalPinToPort(pin_clk));
-  reg_t mask_clk = digitalPinToBitMask(pin_clk);
-  volatile reg_t *port_r_data = portOutputRegister(digitalPinToPort(pin_r_data));
-  reg_t mask_r_data = digitalPinToBitMask(pin_r_data);
+  volatile port_reg_t *port_clk = (volatile port_reg_t *)portOutputRegister(digitalPinToPort(pin_clk));
+  port_reg_t mask_clk = digitalPinToBitMask(pin_clk);
+  volatile port_reg_t *port_r_data = (volatile port_reg_t *) portOutputRegister(digitalPinToPort(pin_r_data));
+  port_reg_t mask_r_data = digitalPinToBitMask(pin_r_data);
 
   for(int i = 0; i < rowsize; i++) {
     softSPITransfer(*(rows[3]++), port_r_data, mask_r_data, port_clk, mask_clk);
@@ -147,7 +145,7 @@ BaseDMD::BaseDMD(byte panelsWide, byte panelsHigh, byte pin_noe, byte pin_a, byt
   bitmap = (uint8_t *)malloc(bitmap_bytes());
 }
 
-void BaseDMD::initialize()
+void BaseDMD::beginNoAuto()
 {
   digitalWrite(pin_noe, LOW);
   pinMode(pin_noe, OUTPUT);
