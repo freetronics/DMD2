@@ -14,7 +14,7 @@ SPIDMD::SPIDMD(byte panelsWide, byte panelsHigh, byte pin_noe, byte pin_a, byte 
 {
 }
 
-void SPIDMD::beginNoAuto()
+void SPIDMD::beginNoTimer()
 {
   // Configure SPI before initialising the base DMD
   SPI.begin();
@@ -25,7 +25,7 @@ void SPIDMD::beginNoAuto()
 #else
   SPI.setClockDivider(20); // 4.2MHz on Due
 #endif
-  BaseDMD::beginNoAuto();
+  BaseDMD::beginNoTimer();
 }
 
 void SPIDMD::writeSPIData(volatile uint8_t *rows[4], const int rowsize)
@@ -91,14 +91,14 @@ SoftDMD::SoftDMD(byte panelsWide, byte panelsHigh, byte pin_noe, byte pin_a, byt
 {
 }
 
-void SoftDMD::beginNoAuto()
+void SoftDMD::beginNoTimer()
 {
   digitalWrite(pin_clk, LOW);
   pinMode(pin_clk, OUTPUT);
 
   digitalWrite(pin_r_data, LOW);
   pinMode(pin_r_data, OUTPUT);
-  BaseDMD::beginNoAuto();
+  BaseDMD::beginNoTimer();
 }
 
 
@@ -144,7 +144,7 @@ BaseDMD::BaseDMD(byte panelsWide, byte panelsHigh, byte pin_noe, byte pin_a, byt
 {
 }
 
-void BaseDMD::beginNoAuto()
+void BaseDMD::beginNoTimer()
 {
   digitalWrite(pin_noe, LOW);
   pinMode(pin_noe, OUTPUT);

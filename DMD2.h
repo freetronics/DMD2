@@ -152,7 +152,7 @@ public:
   void end();
 
   /* Start display, but use manual scanning */
-  virtual void beginNoAuto();
+  virtual void beginNoTimer();
 
   inline void setBrightness(byte level) { this->brightness = level; };
 protected:
@@ -179,7 +179,7 @@ public:
   /* Create a DMD display using a custom pinout for all the non-SPI pins (SPI pins set by hardware) */
   SPIDMD(byte panelsWide, byte panelsHigh, byte pin_noe, byte pin_a, byte pin_b, byte pin_sck);
 
-  void beginNoAuto();
+  void beginNoTimer();
 
   /* Set the "other CS" pin that is checked for in use before scanning the DMD */
   void setOtherCS(byte pin_other_cs) { this->pin_other_cs = pin_other_cs; }
@@ -195,7 +195,7 @@ public:
   SoftDMD(byte panelsWide, byte panelsHigh, byte pin_noe, byte pin_a, byte pin_b, byte pin_sck,
           byte pin_clk, byte pin_r_data);
 
-  void beginNoAuto();
+  void beginNoTimer();
 
 protected:
   void writeSPIData(volatile uint8_t *rows[4], const int rowsize);

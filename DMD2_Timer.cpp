@@ -12,7 +12,7 @@
 #ifdef NO_TIMERS
 // Timer-free stub code
 void BaseDMD::begin() {
-  beginNoAuto();
+  beginNoTimer();
 }
 
 void BaseDMD::end() {
@@ -94,7 +94,7 @@ ISR(TIMER1_OVF_vect)
 
 void BaseDMD::begin()
 {
-  beginNoAuto(); // Do any generic setup
+  beginNoTimer(); // Do any generic setup
 
   char oldSREG = SREG;
   cli();
@@ -125,7 +125,7 @@ void TC7_Handler(){
 
 void BaseDMD::begin()
 {
-  beginNoAuto(); // Do any generic setup
+  beginNoTimer(); // Do any generic setup
 
   NVIC_DisableIRQ(TC7_IRQn);
   register_running_dmd(this);
