@@ -129,20 +129,41 @@ void SoftDMD::writeSPIData(volatile uint8_t *rows[4], const int rowsize)
   }
 }
 
-BaseDMD::BaseDMD(byte panelsWide, byte panelsHigh, byte pin_noe, byte pin_a, byte pin_b, byte pin_sck)
-  : scan_row(0),
-    width(panelsWide),
-    height(panelsHigh),
-    pin_noe(pin_noe),
-    pin_a(pin_a),
-    pin_b(pin_b),
-    pin_sck(pin_sck),
-    default_pins(pin_noe == 9 && pin_a == 6 && pin_b == 7 && pin_sck == 8),
-    pin_other_cs(-1),
-    font(0),
-    brightness(255)
+DMDFrame::DMDFrame(byte panelsWide, byte panelsHigh)
+  :
+  width(panelsWide),
+  height(panelsHigh),
+  font(0)
 {
   bitmap = (uint8_t *)malloc(bitmap_bytes());
+}
+
+DMDFrame::DMDFrame(const DMDFrame &source) :
+  width(source.width),
+  height(source.height),
+  font(source.font)
+{
+  bitmap = (uint8_t *)malloc(bitmap_bytes());
+  memcpy((void *)bitmap, (void *)source.bitmap, bitmap_bytes());
+}
+
+DMDFrame::~DMDFrame()
+{
+  free((void *)bitmap);
+}
+
+BaseDMD::BaseDMD(byte panelsWide, byte panelsHigh, byte pin_noe, byte pin_a, byte pin_b, byte pin_sck)
+  :
+  DMDFrame(panelsWide, panelsHigh),
+  scan_row(0),
+  pin_noe(pin_noe),
+  pin_a(pin_a),
+  pin_b(pin_b),
+  pin_sck(pin_sck),
+  default_pins(pin_noe == 9 && pin_a == 6 && pin_b == 7 && pin_sck == 8),
+  pin_other_cs(-1),
+  brightness(255)
+{
 }
 
 void BaseDMD::beginNoAuto()
@@ -163,7 +184,7 @@ void BaseDMD::beginNoAuto()
   scanDisplay();
 }
 
-inline int BaseDMD::pixelToBitmapIndex(unsigned int x, unsigned int y)
+inline int DMDFrame::pixelToBitmapIndex(unsigned int x, unsigned int y)
 {
   // Panels seen as stretched out in a row for purposes of finding index
   uint8_t panel = (x/WIDTH_PIXELS) + (width * (y/HEIGHT_PIXELS));
@@ -172,7 +193,7 @@ inline int BaseDMD::pixelToBitmapIndex(unsigned int x, unsigned int y)
   return x / 8 + (y * unified_width() / 8);
 }
 
-inline int BaseDMD::pixelToBitmask(unsigned int x)
+inline int DMDFrame::pixelToBitmask(unsigned int x)
 {
   // TODO: investigate the lookup table optimisation from original DMD
   return 1 << (7 - (x & 0x07));
@@ -180,9 +201,9 @@ inline int BaseDMD::pixelToBitmask(unsigned int x)
 
 
 // Set a single LED on or off
-void BaseDMD::setPixel(unsigned int x, unsigned int y, const bool on)
+void DMDFrame::setPixel(unsigned int x, unsigned int y, const bool on)
 {
-  if(x >= total_width() || y >= total_height())
+  if(x >= pixel_width() || y >= pixel_height())
      return;
 
   int byte_idx = pixelToBitmapIndex(x,y);
@@ -194,9 +215,9 @@ void BaseDMD::setPixel(unsigned int x, unsigned int y, const bool on)
 }
 
 
-bool BaseDMD::getPixel(unsigned int x, unsigned int y)
+bool DMDFrame::getPixel(unsigned int x, unsigned int y)
 {
-  if(x >= total_width() || y >= total_height())
+  if(x >= pixel_width() || y >= pixel_height())
      return false;
   int byte_idx = pixelToBitmapIndex(x,y);
   int bit = pixelToBitmask(x);
@@ -204,15 +225,15 @@ bool BaseDMD::getPixel(unsigned int x, unsigned int y)
   return res;
 }
 
-void BaseDMD::movePixels(unsigned int from_x, unsigned int from_y,
+void DMDFrame::movePixels(unsigned int from_x, unsigned int from_y,
                          unsigned int to_x, unsigned int to_y,
                          unsigned int width, unsigned int height)
 {
   // NB: This implementation is pretty slow and uses too much RAM when non-overlapping
   // regions are moved. Would benefit from a rewrite.
 
-  if(from_x >= total_width() || from_y >= total_height()
-     || to_x >= total_width() || to_y >= total_height())
+  if(from_x >= pixel_width() || from_y >= pixel_height()
+     || to_x >= pixel_width() || to_y >= pixel_height())
      return;
 
   uint8_t pixels[(width + 7) / 8][height];
@@ -238,12 +259,12 @@ void BaseDMD::movePixels(unsigned int from_x, unsigned int from_y,
 
 
 // Set the entire screen
-void BaseDMD::fillScreen(bool on)
+void DMDFrame::fillScreen(bool on)
 {
   memset((void *)bitmap, on ? 0 : 0xFF, bitmap_bytes());
 }
 
-void BaseDMD::drawLine(int x1, int y1, int x2, int y2, bool on)
+void DMDFrame::drawLine(int x1, int y1, int x2, int y2, bool on)
 {
   int dy = y2 - y1;
   int dx = x2 - x1;
@@ -291,7 +312,7 @@ void BaseDMD::drawLine(int x1, int y1, int x2, int y2, bool on)
   }
 }
 
-void BaseDMD::drawCircle(unsigned int xCenter, unsigned int yCenter, int radius, bool on)
+void DMDFrame::drawCircle(unsigned int xCenter, unsigned int yCenter, int radius, bool on)
 {
   // Bresenham's circle drawing algorithm
   int x = -radius;
@@ -308,7 +329,7 @@ void BaseDMD::drawCircle(unsigned int xCenter, unsigned int yCenter, int radius,
   }
 }
 
-void BaseDMD::drawBox(unsigned int x1, unsigned int y1, unsigned int x2, unsigned int y2, bool on)
+void DMDFrame::drawBox(unsigned int x1, unsigned int y1, unsigned int x2, unsigned int y2, bool on)
 {
   drawLine(x1, y1, x2, y1, on);
   drawLine(x2, y1, x2, y2, on);
@@ -316,7 +337,7 @@ void BaseDMD::drawBox(unsigned int x1, unsigned int y1, unsigned int x2, unsigne
   drawLine(x1, y2, x1, y1, on);
 }
 
-void BaseDMD::drawFilledBox(unsigned int x1, unsigned int y1, unsigned int x2, unsigned int y2, bool on)
+void DMDFrame::drawFilledBox(unsigned int x1, unsigned int y1, unsigned int x2, unsigned int y2, bool on)
 {
   for (unsigned int b = x1; b <= x2; b++) {
     drawLine(b, y1, b, y2, on);

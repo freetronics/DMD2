@@ -6,7 +6,7 @@
  */
 #include "DMD2.h"
 
-DMD_TextBox::DMD_TextBox(BaseDMD &dmd, int left, int top, int width, int height) :
+DMD_TextBox::DMD_TextBox(DMDFrame &dmd, int left, int top, int width, int height) :
   dmd(dmd),
   inverted(false),
   left(left),
@@ -25,13 +25,13 @@ size_t DMD_TextBox::write(uint8_t character) {
   uint8_t rowHeight = header.height+1;
 
   if(width == 0)
-    width = dmd.total_width();
+    width = dmd.pixel_width();
   if(height == 0)
-    height = dmd.total_height();
+    height = dmd.pixel_height();
 
   uint8_t char_width = dmd.charWidth(character) + 1;
   while((cur_x > 0 && cur_x + char_width >= this->width) || pending_newline) { // Need to wrap to new line
-    if(cur_y + rowHeight * 2 < height) { // No need to scroll
+    if(cur_y + rowHeight * 2 <= height) { // No need to scroll
       cur_y += rowHeight;
       cur_x = 0;
     } else if (height >= rowHeight * 2) { // Scroll vertically, there's enough room for 2 rows of chars

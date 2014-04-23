@@ -1,15 +1,15 @@
 #include "DMD2.h"
 
-void BaseDMD::selectFont(const uint8_t* font)
+void DMDFrame::selectFont(const uint8_t* font)
 {
   this->font = (uint8_t *)font;
 }
 
-int BaseDMD::drawChar(const int x, const int y, const char letter, bool inverse, const uint8_t *font)
+int DMDFrame::drawChar(const int x, const int y, const char letter, bool inverse, const uint8_t *font)
 {
   if(!font)
     font = this->font;
-  if(x >= (int)total_width() || y >= (int)total_height())
+  if(x >= (int)pixel_width() || y >= (int)pixel_height())
     return -1;
 
   struct FontHeader header;
@@ -67,7 +67,7 @@ int BaseDMD::drawChar(const int x, const int y, const char letter, bool inverse,
 }
 
 // Generic drawString implementation for various kinds of strings
-template <class StrType> __attribute__((always_inline)) inline void _drawString(BaseDMD *dmd, int x, int y, StrType str, bool inverse, const uint8_t *font)
+template <class StrType> __attribute__((always_inline)) inline void _drawString(DMDFrame *dmd, int x, int y, StrType str, bool inverse, const uint8_t *font)
 {
   struct FontHeader header;
   memcpy_P(&header, font, sizeof(FontHeader));
@@ -99,7 +99,7 @@ template <class StrType> __attribute__((always_inline)) inline void _drawString(
 }
 
 // Generic stringWidth implementation for various kinds of strings
-template <class StrType> __attribute__((always_inline)) inline unsigned int _stringWidth(BaseDMD *dmd, const uint8_t *font, StrType str)
+template <class StrType> __attribute__((always_inline)) inline unsigned int _stringWidth(DMDFrame *dmd, const uint8_t *font, StrType str)
 {
   unsigned int width = 0;
   char c;
@@ -127,17 +127,17 @@ public:
   }
 };
 
-void BaseDMD::drawString_P(int x, int y, const char *flashStr, bool inverse, const uint8_t *font)
+void DMDFrame::drawString_P(int x, int y, const char *flashStr, bool inverse, const uint8_t *font)
 {
   if(!font)
     font = this->font;
-  if(x >= (int)total_width() || y >= (int)total_height())
+  if(x >= (int)pixel_width() || y >= (int)pixel_height())
     return;
   _FlashStringWrapper wrapper(flashStr);
   _drawString(this, x, y, wrapper, inverse, font);
 }
 
-unsigned int BaseDMD::stringWidth_P(const char *flashStr, const uint8_t *font)
+unsigned int DMDFrame::stringWidth_P(const char *flashStr, const uint8_t *font)
 {
   if(!font)
     font = this->font;
@@ -147,26 +147,26 @@ unsigned int BaseDMD::stringWidth_P(const char *flashStr, const uint8_t *font)
 
 #endif
 
-void BaseDMD::drawString(int x, int y, const char *bChars, bool inverse, const uint8_t *font)
+void DMDFrame::drawString(int x, int y, const char *bChars, bool inverse, const uint8_t *font)
 {
   if(!font)
     font = this->font;
-  if (x >= (int)total_width() || y >= (int)total_height())
+  if (x >= (int)pixel_width() || y >= (int)pixel_height())
     return;
   _drawString(this, x, y, bChars, inverse, font);
 }
 
-void BaseDMD::drawString(int x, int y, const String &str, bool inverse, const uint8_t *font)
+void DMDFrame::drawString(int x, int y, const String &str, bool inverse, const uint8_t *font)
 {
   if(!font)
     font = this->font;
-  if (x >= (int)total_width() || y >= (int)total_height())
+  if (x >= (int)pixel_width() || y >= (int)pixel_height())
     return;
   _drawString(this, x, y, str, inverse, font);
 }
 
 //Find the width of a character
-int BaseDMD::charWidth(const char letter, const uint8_t *font)
+int DMDFrame::charWidth(const char letter, const uint8_t *font)
 {
   if(!font)
     font = this->font;
@@ -203,14 +203,14 @@ int BaseDMD::charWidth(const char letter, const uint8_t *font)
   return width;
 }
 
-unsigned int BaseDMD::stringWidth(const char *bChars, const uint8_t *font)
+unsigned int DMDFrame::stringWidth(const char *bChars, const uint8_t *font)
 {
   if(!font)
     font = this->font;
   return _stringWidth(this, font, bChars);
 }
 
-unsigned int BaseDMD::stringWidth(const String &str, const uint8_t *font)
+unsigned int DMDFrame::stringWidth(const String &str, const uint8_t *font)
 {
   if(!font)
     font = this->font;

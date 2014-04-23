@@ -46,29 +46,13 @@ enum DMDTestPattern {
 
 class DMD_TextBox;
 
-class BaseDMD
+class DMDFrame
 {
   friend class DMD_TextBox;
-protected:
-  BaseDMD(byte panelsWide, byte panelsHigh, byte pin_noe, byte pin_a, byte pin_b, byte pin_sck);
-
-  virtual void writeSPIData(volatile uint8_t *rows[4], const int rowsize) = 0;
-public:
-  /* Refresh the display by manually scanning out current array of
-     pixels. Call often, or use begin()/end() to automatically scan
-     the display (see below.)
-  */
-  virtual void scanDisplay();
-
-  /* Automatically start/stop scanning of the display output at
-     flicker-free speed.  Setting this option will use Timer1 on
-     AVR-based Arduinos or Timer7 on Arduino Due.
-  */
-  void begin();
-  void end();
-
-  /* Start display, but use manual scanning */
-  virtual void beginNoAuto();
+ public:
+  DMDFrame(byte panelsWide, byte panelsHigh);
+  DMDFrame(const DMDFrame &source);
+  virtual ~DMDFrame();
 
   // Set a single LED on or off
   void setPixel(unsigned int x, unsigned int y, const bool on);
@@ -116,14 +100,56 @@ public:
   unsigned int stringWidth(const char *bChars, const uint8_t *font = NULL);
   unsigned int stringWidth(const String &str, const uint8_t *font = NULL);
 
-  inline void setBrightness(byte level) { this->brightness = level; };
+  inline int pixel_width() { return width * WIDTH_PIXELS; };
+  inline int pixel_height() { return height * HEIGHT_PIXELS; };
 
-protected:
+ protected:
   volatile uint8_t *bitmap;
-  volatile byte scan_row;
   byte width; // in displays not pixels
   byte height; // in displays not pixels
 
+  uint8_t *font;
+
+  inline unsigned int pixel_panels() { return width * height; };
+  inline size_t bitmap_bytes() { return pixel_panels() * WIDTH_PIXELS * HEIGHT_PIXELS / 8; };
+  // Pixel dimensions:
+  inline unsigned int unified_width() { return pixel_panels() * WIDTH_PIXELS; }; // width of all displays as seen by controller
+
+  inline int pixelToBitmapIndex(unsigned int x, unsigned int y);
+  inline int pixelToBitmask(unsigned int x); 
+
+  template<typename T> inline void clamp_xy(T &x, T&y) {
+    clamp(x, (T)0, pixel_width()-1);
+    clamp(y, (T)0, pixel_height()-1);
+  }
+};
+
+class BaseDMD : public DMDFrame
+{
+protected:
+  BaseDMD(byte panelsWide, byte panelsHigh, byte pin_noe, byte pin_a, byte pin_b, byte pin_sck);
+
+  virtual void writeSPIData(volatile uint8_t *rows[4], const int rowsize) = 0;
+public:
+  /* Refresh the display by manually scanning out current array of
+     pixels. Call often, or use begin()/end() to automatically scan
+     the display (see below.)
+  */
+  virtual void scanDisplay();
+
+  /* Automatically start/stop scanning of the display output at
+     flicker-free speed.  Setting this option will use Timer1 on
+     AVR-based Arduinos or Timer7 on Arduino Due.
+  */
+  void begin();
+  void end();
+
+  /* Start display, but use manual scanning */
+  virtual void beginNoAuto();
+
+  inline void setBrightness(byte level) { this->brightness = level; };
+protected:
+  volatile byte scan_row;
   byte pin_noe;
   byte pin_a;
   byte pin_b;
@@ -132,23 +158,8 @@ protected:
   bool default_pins; // shortcut for default pin behaviour, can use macro writes
   int8_t pin_other_cs; // CS pin to check before SPI behaviour, only makes sense for SPIDMD
 
-  uint8_t *font;
   uint8_t brightness;
 
-  inline unsigned int total_panels() { return width * height; };
-  inline size_t bitmap_bytes() { return total_panels() * WIDTH_PIXELS * HEIGHT_PIXELS / 8; };
-  // Pixel dimensions:
-  inline unsigned int total_width() { return width * WIDTH_PIXELS; };
-  inline unsigned int total_height() { return height * HEIGHT_PIXELS; };
-  inline unsigned int unified_width() { return total_panels() * WIDTH_PIXELS; }; // width of all displays as seen by controller
-
-  inline int pixelToBitmapIndex(unsigned int x, unsigned int y);
-  inline int pixelToBitmask(unsigned int x); 
-
-  template<typename T> inline void clamp_xy(T &x, T&y) {
-    clamp(x, (T)0, total_width()-1);
-    clamp(y, (T)0, total_height()-1);
-  }
 };
 
 class SPIDMD : public BaseDMD
@@ -188,13 +199,13 @@ private:
 
 class DMD_TextBox : public Print {
 public:
-  DMD_TextBox(BaseDMD &dmd, int left = 0, int top = 0, int width = 0, int height = 0);
+  DMD_TextBox(DMDFrame &dmd, int left = 0, int top = 0, int width = 0, int height = 0);
   virtual size_t write(uint8_t);
   void clear();
   void reset();
   void invertDisplay() { inverted = !inverted; }
 private:
-  BaseDMD &dmd;
+  DMDFrame &dmd;
   bool inverted;
   int left;
   int top;
