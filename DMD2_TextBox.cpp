@@ -21,8 +21,6 @@
  You should have received a copy of the GNU General Public License along with this program.
  If not, see <http://www.gnu.org/licenses/>.
 */
-
- */
 #include "DMD2.h"
 
 DMD_TextBox::DMD_TextBox(DMDFrame &dmd, int left, int top, int width, int height) :
