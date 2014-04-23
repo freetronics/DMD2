@@ -3,7 +3,24 @@
  DMD2.h   - Arduino library for the Freetronics DMD, a 512 LED matrix display
            panel arranged in a 32 x 16 layout.
 
- This is a non-compatible replacement for the original DMD library.
+ Copyright (C) 2014 Freetronics, Inc. (info <at> freetronics <dot> com)
+
+ This is a non-backwards-compatible replacement for the original DMD library.
+
+ Updated by Angus Gratton, based on DMD by Marc Alexander.
+
+---
+
+ This program is free software: you can redistribute it and/or modify it under the terms
+ of the version 3 GNU General Public License as published by the Free Software Foundation.
+
+ This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+ without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ See the GNU General Public License for more details.
+
+ You should have received a copy of the GNU General Public License along with this program.
+ If not, see <http://www.gnu.org/licenses/>.
+
 */
 #ifndef DMD2_H
 #define DMD2_H
