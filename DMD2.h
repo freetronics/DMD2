@@ -46,6 +46,11 @@ enum DMDTestPattern {
 
 class DMD_TextBox;
 
+/* DMDFrame is a class encapsulating a framebuffer for the DMD, and all the graphical
+   operations associated with it.
+
+   This allows you to implement double buffered/frame flipping, etc.
+*/
 class DMDFrame
 {
   friend class DMD_TextBox;
@@ -102,6 +107,8 @@ class DMDFrame
 
   inline int pixel_width() { return width * WIDTH_PIXELS; };
   inline int pixel_height() { return height * HEIGHT_PIXELS; };
+
+  void swapBuffers(DMDFrame &other);
 
  protected:
   volatile uint8_t *bitmap;
