@@ -4,7 +4,6 @@
 
 #include <SPI.h>
 #include <DMD2.h>
-#include <fonts/SystemFont5x7.h>
 #include <fonts/Arial14.h>
 
 const int COUNTDOWN_FROM = 12;
