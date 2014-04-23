@@ -122,8 +122,8 @@ class DMDFrame
   // Pixel dimensions:
   inline unsigned int unified_width() { return pixel_panels() * WIDTH_PIXELS; }; // width of all displays as seen by controller
 
-  inline int pixelToBitmapIndex(unsigned int x, unsigned int y);
-  inline int pixelToBitmask(unsigned int x); 
+  inline int pixelToBitmapIndex(unsigned int x, unsigned int y) __attribute__((always_inline));
+  inline uint8_t pixelToBitmask(unsigned int x);
 
   template<typename T> inline void clamp_xy(T &x, T&y) {
     clamp(x, (T)0, pixel_width()-1);

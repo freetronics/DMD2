@@ -39,6 +39,8 @@ void loop() {
   // Store the current generation by copying the current DMD frame contents
   DMDFrame current_generation(dmd);
 
+  long start = millis();
+
   // Update next generation of every pixel
   bool change = false;
   for(int x = 0; x < dmd.pixel_width(); x++) {
@@ -69,12 +71,13 @@ void loop() {
     }
   }
 
+  Serial.println(String("Generation time: ") + (millis() - start) + " ms");
+
   if(!change) {
     // We've made it to an unchanging state
     delay(500);
     populate_random_cells();
     // (We can't detect steady states where things change forward
     // and back, for these you need to press reset!)
-
   }
 }

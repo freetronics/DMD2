@@ -57,7 +57,6 @@ void BaseDMD::scanDisplay()
 
   writeSPIData(rows, rowsize);
 
-  // TODO: Do version for default_pins
   digitalWrite(pin_noe, LOW);
   digitalWrite(pin_sck, HIGH); // Latch DMD shift register output
   digitalWrite(pin_sck, LOW); // (Deliberately left as digitalWrite to ensure decent latching time)

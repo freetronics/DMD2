@@ -52,10 +52,20 @@ inline int DMDFrame::pixelToBitmapIndex(unsigned int x, unsigned int y)
   return x / 8 + (y * unified_width() / 8);
 }
 
-inline int DMDFrame::pixelToBitmask(unsigned int x)
+inline uint8_t DMDFrame::pixelToBitmask(unsigned int x)
 {
-  // TODO: investigate the lookup table optimisation from original DMD
-  return 1 << (7 - (x & 0x07));
+  // Pixel lookup, marginally faster than bit shifting the argument
+  static const PROGMEM uint8_t lookup_table[] = {
+    0x80,   //0, bit 7
+    0x40,   //1, bit 6
+    0x20,   //2. bit 5
+    0x10,   //3, bit 4
+    0x08,   //4, bit 3
+    0x04,   //5, bit 2
+    0x02,   //6, bit 1
+    0x01    //7, bit 0
+  };
+  return pgm_read_byte(lookup_table + (x & 0x07));
 }
 
 
@@ -66,7 +76,7 @@ void DMDFrame::setPixel(unsigned int x, unsigned int y, const bool on)
      return;
 
   int byte_idx = pixelToBitmapIndex(x,y);
-  int bit = pixelToBitmask(x);
+  uint8_t bit = pixelToBitmask(x);
   if(on)
     bitmap[byte_idx] &= ~bit;
   else
@@ -79,7 +89,7 @@ bool DMDFrame::getPixel(unsigned int x, unsigned int y)
   if(x >= pixel_width() || y >= pixel_height())
      return false;
   int byte_idx = pixelToBitmapIndex(x,y);
-  int bit = pixelToBitmask(x);
+  uint8_t bit = pixelToBitmask(x);
   bool res = !(bitmap[byte_idx] & bit);
   return res;
 }
