@@ -11,7 +11,7 @@ The DMD2 library includes the following new features:
 * Supports Arduino Due (IDE 1.5.6 or newer), as well as AVR-based Arduinos.
 * Adds new "SoftDMD" support, which allows the standard DMDCon board connections to be used on all standard Arduino compatible models - including Arduino Mega/EtherMega, Arduino Due/EtherDue or Arduino Leonardo.
 * Integrated timer management for simpler sketches.
-* Improved performance, a single DMD panel uses approximately 5% CPU overhead to update (in either SoftDMD or SPIDMD modes.)
+* Improved performance, a single DMD panel uses approximately 5-6% CPU overhead to update (including when using the SoftDMD mode rather than hardware SPI.)
 * New drawString() methods accept flash strings, or the Arduino String type, directly. See the "AllDrawingOperations" example.
 * New DMD_TextBox class supports automatic scrolling, and automatic `print()` interface for writing out numbers, variables, etc. See "Countdown" and "ScrollingAlphabet" examples.
 * New dmd.setBrightness() call allows changing DMD brightness (no more blindingly bright displays!)
@@ -28,7 +28,7 @@ The DMD2 library includes the following new features:
 
 More documentation will be produced before the library reaches final release rather than Beta status. Many of the DMD2 concepts are borrowed from FTOLED library so the [FTOLED wiki](https://github.com/freetronics/FTOLED/wiki/) may be of use.
 
-Feel free to ask [questions on the forum]((http://forum.freetronics.com/viewforum.php?f=26) if things don't work.
+Feel free to ask [questions on the forum](http://forum.freetronics.com/viewforum.php?f=26) if things don't work.
 
 # About the Makefiles
 
