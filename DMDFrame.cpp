@@ -86,17 +86,34 @@ inline uint8_t DMDFrame::pixelToBitmask(unsigned int x)
 
 
 // Set a single LED on or off
-void DMDFrame::setPixel(unsigned int x, unsigned int y, const bool on)
+void DMDFrame::setPixel(unsigned int x, unsigned int y, DMDGraphicsMode mode)
 {
   if(x >= pixel_width() || y >= pixel_height())
      return;
 
   int byte_idx = pixelToBitmapIndex(x,y);
   uint8_t bit = pixelToBitmask(x);
-  if(on)
-    bitmap[byte_idx] &= ~bit;
-  else
-    bitmap[byte_idx] |= bit;
+  switch(mode) {
+     case GRAPHICS_NORMAL:
+            bitmap[byte_idx] &= ~bit; // clear bit
+            break;
+     case GRAPHICS_OFF:
+            bitmap[byte_idx] |= bit; // set bit
+            break;
+     case GRAPHICS_OR:
+          bitmap[byte_idx] |= ~bit;
+          break;
+      case GRAPHICS_NOR:
+          bitmap[byte_idx] |= bit;
+          break;
+      case GRAPHICS_XOR:
+          bitmap[byte_idx] ^= bit;
+          break;
+      case GRAPHICS_TOGGLE:
+          bitmap[byte_idx] |= ~(bitmap[byte_idx] & bit);
+          break;
+   }
+    
 }
 
 
@@ -129,7 +146,7 @@ void DMDFrame::movePixels(unsigned int from_x, unsigned int from_y,
       unsigned int bit = x % 8;
       if(getPixel(from_x+x, from_y+y)) {
         pixels[x/8][y] |= (1<<bit);
-        setPixel(from_x+x,from_y+y,false);
+        setPixel(from_x+x,from_y+y,GRAPHICS_OFF);
       }
     }
   }
@@ -137,7 +154,11 @@ void DMDFrame::movePixels(unsigned int from_x, unsigned int from_y,
   for(unsigned int y = 0; y < height; y++) {
     for(unsigned int x = 0; x < width; x++) {
       unsigned int bit = x % 8;
-      setPixel(x+to_x,y+to_y, pixels[x/8][y] & (1<<bit));
+      if(pixels[x/8][y] & (1<<bit)) {
+        setPixel(x+to_x,y+to_y, GRAPHICS_OFF);
+      } else {
+        setPixel(x+to_x,y+to_y, GRAPHICS_NORMAL);
+      }
     }
   }
 }
@@ -149,7 +170,7 @@ void DMDFrame::fillScreen(bool on)
   memset((void *)bitmap, on ? 0 : 0xFF, bitmap_bytes());
 }
 
-void DMDFrame::drawLine(int x1, int y1, int x2, int y2, bool on)
+void DMDFrame::drawLine(int x1, int y1, int x2, int y2, DMDGraphicsMode mode)
 {
   int dy = y2 - y1;
   int dx = x2 - x1;
@@ -170,8 +191,7 @@ void DMDFrame::drawLine(int x1, int y1, int x2, int y2, bool on)
   dy = dy * 2;
   dx = dx * 2;
 
-
-  setPixel(x1, y1, on);
+  setPixel(x1, y1, mode);
   if (dx > dy) {
     int fraction = dy - (dx / 2);	// same as 2*dy - dx
     while (x1 != x2) {
@@ -181,7 +201,7 @@ void DMDFrame::drawLine(int x1, int y1, int x2, int y2, bool on)
       }
       x1 += stepx;
       fraction += dy;	// same as fraction -= 2*dy
-      setPixel(x1, y1, on);
+      setPixel(x1, y1, mode);
     }
   } else {
     int fraction = dx - (dy / 2);
@@ -192,39 +212,39 @@ void DMDFrame::drawLine(int x1, int y1, int x2, int y2, bool on)
       }
       y1 += stepy;
       fraction += dx;
-      setPixel(x1, y1, on);
+      setPixel(x1, y1, mode);
     }
   }
 }
 
-void DMDFrame::drawCircle(unsigned int xCenter, unsigned int yCenter, int radius, bool on)
+void DMDFrame::drawCircle(unsigned int xCenter, unsigned int yCenter, int radius, DMDGraphicsMode mode)
 {
   // Bresenham's circle drawing algorithm
   int x = -radius;
   int y = 0;
   int error = 2-2*radius;
   while(x < 0) {
-    setPixel(xCenter-x, yCenter+y, on);
-    setPixel(xCenter-y, yCenter-x, on);
-    setPixel(xCenter+x, yCenter-y, on);
-    setPixel(xCenter+y, yCenter+x, on);
+    setPixel(xCenter-x, yCenter+y, mode);
+    setPixel(xCenter-y, yCenter-x, mode);
+    setPixel(xCenter+x, yCenter-y, mode);
+    setPixel(xCenter+y, yCenter+x, mode);
     radius = error;
     if (radius <= y) error += ++y*2+1;
     if (radius > x || error > y) error += ++x*2+1;
   }
 }
 
-void DMDFrame::drawBox(unsigned int x1, unsigned int y1, unsigned int x2, unsigned int y2, bool on)
+void DMDFrame::drawBox(unsigned int x1, unsigned int y1, unsigned int x2, unsigned int y2, DMDGraphicsMode mode)
 {
-  drawLine(x1, y1, x2, y1, on);
-  drawLine(x2, y1, x2, y2, on);
-  drawLine(x2, y2, x1, y2, on);
-  drawLine(x1, y2, x1, y1, on);
+  drawLine(x1, y1, x2, y1, mode);
+  drawLine(x2, y1, x2, y2, mode);
+  drawLine(x2, y2, x1, y2, mode);
+  drawLine(x1, y2, x1, y1, mode);
 }
 
-void DMDFrame::drawFilledBox(unsigned int x1, unsigned int y1, unsigned int x2, unsigned int y2, bool on)
+void DMDFrame::drawFilledBox(unsigned int x1, unsigned int y1, unsigned int x2, unsigned int y2, DMDGraphicsMode mode)
 {
   for (unsigned int b = x1; b <= x2; b++) {
-    drawLine(b, y1, b, y2, on);
+    drawLine(b, y1, b, y2, mode);
   }
 }

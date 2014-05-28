@@ -61,6 +61,17 @@ enum DMDTestPattern {
   PATTERN_STRIPE_1
 };
 
+//Pixel/graphics writing modes (bGraphicsMode)
+enum DMDGraphicsMode {
+    GRAPHICS_NORMAL, //unconditionally on
+    GRAPHICS_INVERSE, // on if was going to set to off
+    GRAPHICS_TOGGLE, // turn off if on, and v/v
+    GRAPHICS_OR, // add to pixels already on
+    GRAPHICS_NOR, // subtract from pixels already on, don't turn any new ones on
+    GRAPHICS_XOR, // TODO
+    GRAPHICS_OFF // unconditionally off
+};
+
 class DMD_TextBox;
 
 /* DMDFrame is a class encapsulating a framebuffer for the DMD, and all the graphical
@@ -77,7 +88,7 @@ class DMDFrame
   virtual ~DMDFrame();
 
   // Set a single LED on or off
-  void setPixel(unsigned int x, unsigned int y, const bool on);
+  void setPixel(unsigned int x, unsigned int y, DMDGraphicsMode mode=GRAPHICS_NORMAL);
 
   // Get status of a single LED
   bool getPixel(unsigned int x, unsigned int y);
@@ -92,22 +103,22 @@ class DMDFrame
   inline void clearScreen() { fillScreen(false); };
 
   // Drawing primitives
-  void drawLine(int x1, int y1, int x2, int y2, bool on = true);
-  void drawCircle(unsigned int xCenter, unsigned int yCenter, int radius, bool on = true);
-  void drawBox(unsigned int x1, unsigned int y1, unsigned int x2, unsigned int y2, bool on = true);
-  void drawFilledBox(unsigned int x1, unsigned int y1, unsigned int x2, unsigned int y2, bool on = true);
+  void drawLine(int x1, int y1, int x2, int y2, DMDGraphicsMode mode=GRAPHICS_NORMAL);
+  void drawCircle(unsigned int xCenter, unsigned int yCenter, int radius, DMDGraphicsMode mode);
+  void drawBox(unsigned int x1, unsigned int y1, unsigned int x2, unsigned int y2, DMDGraphicsMode mode=GRAPHICS_NORMAL);
+  void drawFilledBox(unsigned int x1, unsigned int y1, unsigned int x2, unsigned int y2, DMDGraphicsMode mode=GRAPHICS_NORMAL);
   void drawTestPattern(DMDTestPattern pattern);
 
   // Text primitives
   void selectFont(const uint8_t* font);
   const inline uint8_t *getFont(void) { return font; }
-  int drawChar(const int x, const int y, const char letter, bool inverse = false, const uint8_t *font = NULL);
+  int drawChar(const int x, const int y, const char letter, DMDGraphicsMode mode=GRAPHICS_NORMAL, const uint8_t *font = NULL);
 #ifdef __AVR__
-  void drawString_P(int x, int y, const char *flashStr, bool inverse = false, const uint8_t *font = NULL);
+  void drawString_P(int x, int y, const char *flashStr, DMDGraphicsMode mode=GRAPHICS_NORMAL, const uint8_t *font = NULL);
 
 #endif
-  void drawString(int x, int y, const char *bChars, bool inverse = false, const uint8_t *font = NULL);
-  void drawString(int x, int y, const String &str, bool inverse = false, const uint8_t *font = NULL);
+  void drawString(int x, int y, const char *bChars, DMDGraphicsMode mode=GRAPHICS_NORMAL, const uint8_t *font = NULL);
+  void drawString(int x, int y, const String &str, DMDGraphicsMode mode=GRAPHICS_NORMAL, const uint8_t *font = NULL);
 
   //Find the width of a character
   int charWidth(const char letter, const uint8_t *font = NULL);

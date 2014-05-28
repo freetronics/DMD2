@@ -61,14 +61,18 @@ size_t DMD_TextBox::write(uint8_t character) {
     pending_newline = false;
   }
 
+  DMDGraphicsMode mode = GRAPHICS_NORMAL;
+  if(inverted) {
+    mode = GRAPHICS_OFF;
+  }
   if(character == '\n') {
     pending_newline = true;
     // clear the rest of the line after the current cursor position,
     // this allows you to then use reset() and do a flicker-free redraw
-    dmd.drawFilledBox(cur_x+left,cur_y+top,left+width,cur_y+top+rowHeight, inverted);
+    dmd.drawFilledBox(cur_x+left,cur_y+top,left+width,cur_y+top+rowHeight, mode);
   }
 
-  dmd.drawChar(cur_x+left,cur_y+top,character, inverted);
+  dmd.drawChar(cur_x+left,cur_y+top,character, mode);
   cur_x += char_width;
   return 1;
 }
@@ -87,7 +91,12 @@ void DMD_TextBox::scrollX(uint8_t charWidth) {
 
 void DMD_TextBox::clear() {
   this->reset();
-  dmd.drawFilledBox(left,top,left+width,top+height,inverted);
+  
+  DMDGraphicsMode mode = GRAPHICS_NORMAL;
+  if(inverted) {
+    mode = GRAPHICS_OFF;
+  }
+  dmd.drawFilledBox(left,top,left+width,top+height,mode);
 }
 
 void DMD_TextBox::reset() {
