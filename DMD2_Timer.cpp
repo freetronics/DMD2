@@ -20,14 +20,22 @@
 */
 #include "DMD2.h"
 
-// Uncomment the following line if you don't want DMD library to touch
-// any timer functionality (ie if you want to use TimerOne library or
-// similar, or other libraries that use timers.)
+/*
+  Uncomment the following line if you don't want DMD library to touch
+  any timer functionality (ie if you want to use TimerOne library or
+  similar, or other libraries that use timers.
+
+  With timers enabled, on AVR-based Arduinos this code will register a
+  Timer1 overflow handler (without disrupting any built-in library
+  functions.) On ARM-based Arduino Due it will use use Timer7.
+
+*/
 
 //#define NO_TIMERS
 
 #ifdef NO_TIMERS
-// Timer-free stub code
+
+// Timer-free stub code which gets compiled in only if NO_TIMERS is set
 void BaseDMD::begin() {
   beginNoTimer();
 }
@@ -37,65 +45,14 @@ void BaseDMD::end() {
 
 #else // Use timers
 
-// Keep an array of pointers to all known DMDs so we can
-// call them on timer interrupt.
-//
-// List uses realloc to grow, doesn't shrink on stop just NULLs out the
-// entry (presuming there isn't a lot of growth/shrinkage of DMD arrays!)
-static volatile BaseDMD **running_dmds = 0;
-static volatile int running_dmd_len = 0;
-
-// Add a running_dmd to the list (disable interrupts when running)
-static void register_running_dmd(BaseDMD *dmd)
-{
-  int empty = -1;
-  for(int i = 0; i < running_dmd_len; i++) {
-    if(running_dmds[i] == dmd)
-      return; // Already running and registered
-    if(!running_dmds[i])
-      empty = i; // Found an unused slot in the array
-  }
-
-  if(empty == -1) { // Grow array to fit new entry
-    running_dmd_len++;
-    BaseDMD **resized = (BaseDMD **)realloc(running_dmds, sizeof(BaseDMD *)*running_dmd_len);
-    if(!resized) {
-      // Allocation failed, bail out
-      running_dmd_len--;
-      return;
-    }
-    empty = running_dmd_len-1;
-    running_dmds = (volatile BaseDMD **)resized;
-  }
-  running_dmds[empty] = dmd;
-}
-
-// Null out a running_dmd from the list (disable interrupts when running)
-static bool unregister_running_dmd(BaseDMD *dmd)
-{
-  bool still_running = false;
-  for(int i = 0; i < running_dmd_len; i++) {
-    if(running_dmds[i] == dmd)
-      running_dmds[i] = NULL;
-    else if (running_dmds[i])
-      still_running = true;
-  }
-  return still_running;
-}
-
-static void inline __attribute__((always_inline)) scan_running_dmds()
-{
-  for(int i = 0; i < running_dmd_len; i++) {
-    BaseDMD *next = (BaseDMD*)running_dmds[i];
-    if(next) {
-      next->scanDisplay();
-    }
-  }
-}
+// Forward declarations for tracking currently running DMDs
+static void register_running_dmd(BaseDMD *dmd);
+static bool unregister_running_dmd(BaseDMD *dmd);
+static void inline scan_running_dmds();
 
 #ifdef __AVR__
 
-/* This timer ISR uses the standard /64 timing used by Timer1 in the Arduino core,
+/* This AVR timer ISR uses the standard /64 timing used by Timer1 in the Arduino core,
    so none of those registers (or normal PWM timing) is changed. We do skip 50% of ISRs
    as 50% timer overflows is approximately every 4ms, which is fine for flicker-free
    updating.
@@ -133,8 +90,9 @@ void BaseDMD::end()
   scanDisplay();
 }
 
-#else // __ARM__, Due assumed
+#else // __ARM__, Due assumed for now
 
+/* ARM timer callback (ISR context), checks timer status then scans all running DMDs */
 void TC7_Handler(){
   TC_GetStatus(TC2, 1);
   scan_running_dmds();
@@ -171,4 +129,69 @@ void BaseDMD::end()
 }
 
 #endif // ifdef __AVR__
+
+/* Following functions are static non-architecture-specific functions
+   to manage a global array that tracks all known DMD instances.
+
+   This is so a global C code interrupt can call all of the DMDs on
+   timer interrupt.
+
+   The array is grown with realloc. If a DMD is destroyed then it
+   shrink the array, it just NULLs out the entry (presuming there
+   isn't a lot of dynamic growth/shrinkage of DMDs within a sketch!)
+*/
+static volatile BaseDMD **running_dmds = 0;
+static volatile int running_dmd_len = 0;
+
+// Add a running_dmd to the list (caller must have disabled interrupts)
+static void register_running_dmd(BaseDMD *dmd)
+{
+  int empty = -1;
+  for(int i = 0; i < running_dmd_len; i++) {
+    if(running_dmds[i] == dmd)
+      return; // Already running and registered
+    if(!running_dmds[i])
+      empty = i; // Found an unused slot in the array
+  }
+
+  if(empty == -1) { // Grow array to fit new entry
+    running_dmd_len++;
+    BaseDMD **resized = (BaseDMD **)realloc(running_dmds, sizeof(BaseDMD *)*running_dmd_len);
+    if(!resized) {
+      // Allocation failed, bail out
+
+      running_dmd_len--;
+      return;
+    }
+    empty = running_dmd_len-1;
+    running_dmds = (volatile BaseDMD **)resized;
+  }
+  running_dmds[empty] = dmd;
+}
+
+// Null out a running_dmd from the list (caller must have disabled interrupts)
+static bool unregister_running_dmd(BaseDMD *dmd)
+{
+  bool still_running = false;
+  for(int i = 0; i < running_dmd_len; i++) {
+    if(running_dmds[i] == dmd)
+      running_dmds[i] = NULL;
+    else if (running_dmds[i])
+      still_running = true;
+  }
+  return still_running;
+}
+
+// This method is called from timer ISR to scan all the DMD instances present in the running sketch
+static void inline __attribute__((always_inline)) scan_running_dmds()
+{
+  for(int i = 0; i < running_dmd_len; i++) {
+    BaseDMD *next = (BaseDMD*)running_dmds[i];
+    if(next) {
+      next->scanDisplay();
+    }
+  }
+}
+
+
 #endif // ifdef NO_TIMERS

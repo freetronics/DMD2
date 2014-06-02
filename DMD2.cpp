@@ -40,15 +40,16 @@ void SPIDMD::beginNoTimer()
   SPI.setBitOrder(MSBFIRST);
   SPI.setDataMode(SPI_MODE0);	// CPOL=0, CPHA=0
 #ifdef __AVR__
-  SPI.setClockDivider(SPI_CLOCK_DIV4); // 4MHz clock
+  SPI.setClockDivider(SPI_CLOCK_DIV4); // 4MHz clock. 8MHz (DIV2 not DIV4) is possible if you have short cables. Longer cables may need DIV8/DIV16.
 #else
-  SPI.setClockDivider(20); // 4.2MHz on Due
+  SPI.setClockDivider(20); // 4.2MHz on Due. Same comment as above applies (lower numbers = less divider = faster speeds.)
 #endif
   BaseDMD::beginNoTimer();
 }
 
 void SPIDMD::writeSPIData(volatile uint8_t *rows[4], const int rowsize)
 {
+  /* We send out interleaved data for 4 rows at a time */
   for(int i = 0; i < rowsize; i++) {
     SPI.transfer(*(rows[3]++));
     SPI.transfer(*(rows[2]++));
@@ -80,15 +81,17 @@ void BaseDMD::scanDisplay()
   digitalWrite(pin_sck, HIGH); // Latch DMD shift register output
   digitalWrite(pin_sck, LOW); // (Deliberately left as digitalWrite to ensure decent latching time)
 
-  // A, B determine which set of interleaved rows we are multiplexing on
-  // 0 = 1,5,9,13
-  // 1 = 2,6,10,14
-  // 2 = 3,7,11,15
-  // 3 = 4,8,12,16
+  // Digital outputs A, B are a 2-bit selector output, set from the scan_row variable (loops over 0-3),
+  // that determines which set of interleaved rows we are outputting during this pass.
+  // BA 0 (00) = 1,5,9,13
+  // BA 1 (01) = 2,6,10,14
+  // BA 2 (10) = 3,7,11,15
+  // BA 3 (11) = 4,8,12,16
   digitalWrite(pin_a, scan_row & 0x01);
   digitalWrite(pin_b, scan_row & 0x02);
   scan_row = (scan_row + 1) % 4;
 
+  // Output enable pin is either fixed on, or PWMed for a variable brightness display
   if(brightness == 255)
     digitalWrite(pin_noe, HIGH);
   else
@@ -122,6 +125,8 @@ void SoftDMD::beginNoTimer()
 
 
 static inline __attribute__((always_inline)) void softSPITransfer(uint8_t data, volatile port_reg_t *data_port, port_reg_t data_mask, volatile port_reg_t *clk_port, port_reg_t clk_mask) {
+  // Emulate a single byte SPI transfer using software GPIO. Overall this is actually only marginally slower than normal SPI on AVR.
+  //
   // MSB first, data captured on rising edge
   for(uint8_t bit = 0; bit < 8; bit++) {
     if(data & (1<<7))
@@ -136,6 +141,7 @@ static inline __attribute__((always_inline)) void softSPITransfer(uint8_t data, 
 
 void SoftDMD::writeSPIData(volatile uint8_t *rows[4], const int rowsize)
 {
+  /* Write out 4 interleaved rows of data using software GPIO rather than SPI. */
   volatile port_reg_t *port_clk = (volatile port_reg_t *)portOutputRegister(digitalPinToPort(pin_clk));
   port_reg_t mask_clk = digitalPinToBitMask(pin_clk);
   volatile port_reg_t *port_r_data = (volatile port_reg_t *) portOutputRegister(digitalPinToPort(pin_r_data));

@@ -3,7 +3,8 @@
 
  Copyright (C) 2014 Freetronics, Inc. (info <at> freetronics <dot> com)
 
- Updated by Angus Gratton, based on DMD by Marc Alexander.
+ Updated by Angus Gratton, based on DMD by Marc Alexander & FTOLED_Text.cpp
+ from the FTOLED library.
 
 ---
 
