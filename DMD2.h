@@ -30,8 +30,8 @@
 #include "DMD2.h"
 
 // Dimensions of a single display
-const unsigned int WIDTH_PIXELS = 32;
-const unsigned int HEIGHT_PIXELS = 16;
+const unsigned int PANEL_WIDTH = 32;
+const unsigned int PANEL_HEIGHT = 16;
 
 // Clamp a value between two limits
 template<typename T> static inline void clamp(T &value, T lower, T upper) {
@@ -53,6 +53,7 @@ template<typename T> static inline void ensureOrder(T &a, T &b)
   if(b<a) swap(a,b);
 }
 
+extern const uint8_t DMD_Pixel_Lut[]; /* Lookup table for the DMD pixel locations */
 
 enum DMDTestPattern {
   PATTERN_ALT_0,
@@ -72,7 +73,7 @@ class DMDFrame
 {
   friend class DMD_TextBox;
  public:
-  DMDFrame(byte panelsWide, byte panelsHigh);
+  DMDFrame(byte pixelsWide, byte pixelsHigh);
   DMDFrame(const DMDFrame &source);
   virtual ~DMDFrame();
 
@@ -122,29 +123,42 @@ class DMDFrame
   unsigned int stringWidth(const char *bChars, const uint8_t *font = NULL);
   unsigned int stringWidth(const String &str, const uint8_t *font = NULL);
 
-  inline int pixel_width() { return width * WIDTH_PIXELS; };
-  inline int pixel_height() { return height * HEIGHT_PIXELS; };
-
   void swapBuffers(DMDFrame &other);
 
+  const byte width; // in pixels
+  const byte height; // in pixels
  protected:
   volatile uint8_t *bitmap;
-  byte width; // in displays not pixels
-  byte height; // in displays not pixels
+  byte row_width_bytes; // width in bitmap, bit-per-pixel rounded up to nearest byte
+  byte height_in_panels; // in panels
 
   uint8_t *font;
 
-  inline unsigned int pixel_panels() { return width * height; };
-  inline size_t bitmap_bytes() { return pixel_panels() * WIDTH_PIXELS * HEIGHT_PIXELS / 8; };
-  // Pixel dimensions:
-  inline unsigned int unified_width() { return pixel_panels() * WIDTH_PIXELS; }; // width of all displays as seen by controller
-
-  inline int pixelToBitmapIndex(unsigned int x, unsigned int y) __attribute__((always_inline));
-  inline uint8_t pixelToBitmask(unsigned int x); 
+  inline size_t bitmap_bytes() {
+    // total bytes in the bitmap
+    return row_width_bytes * height;
+  }
+  inline size_t unified_width_bytes() {
+    // controller sees all panels as end-to-end, so bitmap arranges it thus
+    return row_width_bytes * height_in_panels;
+  }
+  inline int pixelToBitmapIndex(unsigned int x, unsigned int y) {
+    Serial.print(String("pixelToBitmapIndex ") + x + " " + y + " -> ");
+    int res = (x/8)
+      + (((y / PANEL_HEIGHT) + (y % PANEL_HEIGHT)) * row_width_bytes);
+    Serial.println(String(res) + "/" + bitmap_bytes());
+    return res;
+  }
+  inline uint8_t pixelToBitmask(unsigned int x) {
+    Serial.print(String("pxielToBitmask ") + x + " ");
+    int res = pgm_read_byte(DMD_Pixel_Lut + (x & 0x07));
+    Serial.println(res);
+    return res;
+  }
 
   template<typename T> inline void clamp_xy(T &x, T&y) {
-    clamp(x, (T)0, pixel_width()-1);
-    clamp(y, (T)0, pixel_height()-1);
+    clamp(x, (T)0, (T)width-1);
+    clamp(y, (T)0, (T)width-1);
   }
 };
 
@@ -228,6 +242,10 @@ public:
   void clear();
   void reset();
   void invertDisplay() { inverted = !inverted; }
+  void scrollY(int scrollBy);
+  void scrollX(int scrollBy);
+  void marqueeScrollX(int scrollBy);
+  void marqueeScrollY(int scrollBy);
 private:
   DMDFrame &dmd;
   bool inverted;

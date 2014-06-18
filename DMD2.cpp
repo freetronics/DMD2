@@ -64,7 +64,7 @@ void BaseDMD::scanDisplay()
     return;
   // Rows are send out in 4 blocks of 4 (interleaved), across all panels
 
-  int rowsize = unified_width() / 8; // in bytes
+  int rowsize = unified_width_bytes();
 
   volatile uint8_t *bmp = bitmap;
 
@@ -157,7 +157,7 @@ void SoftDMD::writeSPIData(volatile uint8_t *rows[4], const int rowsize)
 
 BaseDMD::BaseDMD(byte panelsWide, byte panelsHigh, byte pin_noe, byte pin_a, byte pin_b, byte pin_sck)
   :
-  DMDFrame(panelsWide, panelsHigh),
+  DMDFrame(panelsWide*PANEL_WIDTH, panelsHigh*PANEL_HEIGHT),
   scan_row(0),
   pin_noe(pin_noe),
   pin_a(pin_a),

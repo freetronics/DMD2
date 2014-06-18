@@ -30,7 +30,7 @@ int DMDFrame::drawChar(const int x, const int y, const char letter, bool inverse
 {
   if(!font)
     font = this->font;
-  if(x >= (int)pixel_width() || y >= (int)pixel_height())
+  if(x >= (int)width || y >= height)
     return -1;
 
   struct FontHeader header;
@@ -152,7 +152,7 @@ void DMDFrame::drawString_P(int x, int y, const char *flashStr, bool inverse, co
 {
   if(!font)
     font = this->font;
-  if(x >= (int)pixel_width() || y >= (int)pixel_height())
+  if(x >= (int)width || y >= height)
     return;
   _FlashStringWrapper wrapper(flashStr);
   _drawString(this, x, y, wrapper, inverse, font);
@@ -172,7 +172,7 @@ void DMDFrame::drawString(int x, int y, const char *bChars, bool inverse, const 
 {
   if(!font)
     font = this->font;
-  if (x >= (int)pixel_width() || y >= (int)pixel_height())
+  if (x >= (int)width || y >= height)
     return;
   _drawString(this, x, y, bChars, inverse, font);
 }
@@ -181,7 +181,7 @@ void DMDFrame::drawString(int x, int y, const String &str, bool inverse, const u
 {
   if(!font)
     font = this->font;
-  if (x >= (int)pixel_width() || y >= (int)pixel_height())
+  if (x >= (int)width || y >= height)
     return;
   _drawString(this, x, y, str, inverse, font);
 }

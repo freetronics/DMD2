@@ -42,9 +42,9 @@ size_t DMD_TextBox::write(uint8_t character) {
   uint8_t rowHeight = header.height+1;
 
   if(width == 0)
-    width = dmd.pixel_width();
+    width = dmd.width - left;
   if(height == 0)
-    height = dmd.pixel_height();
+    height = dmd.height - top;
 
   uint8_t char_width = dmd.charWidth(character) + 1;
   while((cur_x > 0 && cur_x + char_width >= this->width) || pending_newline) { // Need to wrap to new line

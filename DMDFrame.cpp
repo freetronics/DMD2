@@ -21,18 +21,22 @@
  If not, see <http://www.gnu.org/licenses/>.
 */
 
-DMDFrame::DMDFrame(byte panelsWide, byte panelsHigh)
+DMDFrame::DMDFrame(byte pixelsWide, byte pixelsHigh)
   :
-  width(panelsWide),
-  height(panelsHigh),
+  width(pixelsWide),
+  height(pixelsHigh),
   font(0)
 {
+  row_width_bytes = (pixelsWide + 7)/8; // on full panels pixelsWide is a multiple of 8, but for sub-regions may not be
+  height_in_panels = pixelsHigh / PANEL_HEIGHT;
   bitmap = (uint8_t *)malloc(bitmap_bytes());
 }
 
 DMDFrame::DMDFrame(const DMDFrame &source) :
   width(source.width),
+  row_width_bytes(source.row_width_bytes),
   height(source.height),
+  height_in_panels(source.height_in_panels),
   font(source.font)
 {
   bitmap = (uint8_t *)malloc(bitmap_bytes());
@@ -59,36 +63,10 @@ void DMDFrame::swapBuffers(DMDFrame &other)
 #endif
 }
 
-inline int DMDFrame::pixelToBitmapIndex(unsigned int x, unsigned int y)
-{
-  // Panels seen as stretched out in a row for purposes of finding index
-  uint8_t panel = (x/WIDTH_PIXELS) + (width * (y/HEIGHT_PIXELS));
-  x = (x % WIDTH_PIXELS)  + (panel * WIDTH_PIXELS);
-  y = y % HEIGHT_PIXELS;
-  return x / 8 + (y * unified_width() / 8);
-}
-
-inline uint8_t DMDFrame::pixelToBitmask(unsigned int x)
-{
-  // Pixel lookup, marginally faster than bit shifting the argument
-  static const PROGMEM uint8_t lookup_table[] = {
-    0x80,   //0, bit 7
-    0x40,   //1, bit 6
-    0x20,   //2. bit 5
-    0x10,   //3, bit 4
-    0x08,   //4, bit 3
-    0x04,   //5, bit 2
-    0x02,   //6, bit 1
-    0x01    //7, bit 0
-  };
-  return pgm_read_byte(lookup_table + (x & 0x07));
-}
-
-
 // Set a single LED on or off
 void DMDFrame::setPixel(unsigned int x, unsigned int y, const bool on)
 {
-  if(x >= pixel_width() || y >= pixel_height())
+  if(x >= width || y >= height)
      return;
 
   int byte_idx = pixelToBitmapIndex(x,y);
@@ -102,7 +80,7 @@ void DMDFrame::setPixel(unsigned int x, unsigned int y, const bool on)
 
 bool DMDFrame::getPixel(unsigned int x, unsigned int y)
 {
-  if(x >= pixel_width() || y >= pixel_height())
+  if(x >= width || y >= height)
      return false;
   int byte_idx = pixelToBitmapIndex(x,y);
   uint8_t bit = pixelToBitmask(x);
@@ -117,8 +95,8 @@ void DMDFrame::movePixels(unsigned int from_x, unsigned int from_y,
   // NB: This implementation is pretty slow and uses too much RAM when non-overlapping
   // regions are moved. Would benefit from a rewrite.
 
-  if(from_x >= pixel_width() || from_y >= pixel_height()
-     || to_x >= pixel_width() || to_y >= pixel_height())
+  if(from_x >= width || from_y >= height
+     || to_x >= width || to_y >= height)
      return;
 
   uint8_t pixels[(width + 7) / 8][height];
@@ -228,3 +206,15 @@ void DMDFrame::drawFilledBox(unsigned int x1, unsigned int y1, unsigned int x2, 
     drawLine(b, y1, b, y2, on);
   }
 }
+
+/* Lookup table for DMD pixel locations, marginally faster than bitshifting */
+const PROGMEM uint8_t DMD_Pixel_Lut[] = {
+  0x80,   //0, bit 7
+  0x40,   //1, bit 6
+  0x20,   //2. bit 5
+  0x10,   //3, bit 4
+  0x08,   //4, bit 3
+  0x04,   //5, bit 2
+  0x02,   //6, bit 1
+  0x01    //7, bit 0
+};
