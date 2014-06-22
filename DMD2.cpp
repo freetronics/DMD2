@@ -66,13 +66,11 @@ void BaseDMD::scanDisplay()
 
   int rowsize = unified_width_bytes();
 
-  volatile uint8_t *bmp = bitmap;
-
   volatile uint8_t *rows[4] = { // Scanning out 4 interleaved rows
-    bmp + (scan_row + 0) * rowsize,
-    bmp + (scan_row + 4) * rowsize,
-    bmp + (scan_row + 8) * rowsize,
-    bmp + (scan_row + 12) * rowsize,
+    bitmap + (scan_row + 0) * rowsize,
+    bitmap + (scan_row + 4) * rowsize,
+    bitmap + (scan_row + 8) * rowsize,
+    bitmap + (scan_row + 12) * rowsize,
   };
 
   writeSPIData(rows, rowsize);

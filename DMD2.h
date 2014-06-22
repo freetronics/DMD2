@@ -88,6 +88,12 @@ class DMDFrame
                   unsigned int to_x, unsigned int to_y,
                   unsigned int width, unsigned int height);
 
+  // Extract a sub-region of the frame as a new frame
+  DMDFrame subFrame(unsigned int left, unsigned int top, unsigned int width, unsigned int height);
+
+  // Copy the contents of another frame back into this one at the given location
+  void copyFrame(DMDFrame &from, unsigned int left, unsigned int top);
+
   // Fill the screen on or off
   void fillScreen(bool on);
   inline void clearScreen() { fillScreen(false); };
@@ -139,20 +145,19 @@ class DMDFrame
     return row_width_bytes * height;
   }
   inline size_t unified_width_bytes() {
-    // controller sees all panels as end-to-end, so bitmap arranges it thus
+    // controller sees all panels as end-to-end, so bitmap arranges it that way
     return row_width_bytes * height_in_panels;
   }
   inline int pixelToBitmapIndex(unsigned int x, unsigned int y) {
-    Serial.print(String("pixelToBitmapIndex ") + x + " " + y + " -> ");
-    int res = (x/8)
-      + (((y / PANEL_HEIGHT) + (y % PANEL_HEIGHT)) * row_width_bytes);
-    Serial.println(String(res) + "/" + bitmap_bytes());
+    // Panels seen as stretched out in a row for purposes of finding index
+    uint8_t panel = (x/PANEL_WIDTH) + ((width/PANEL_WIDTH) * (y/PANEL_HEIGHT));
+    x = (x % PANEL_WIDTH)  + (panel * PANEL_WIDTH);
+    y = y % PANEL_HEIGHT;
+    int res = x / 8 + (y * unified_width_bytes());
     return res;
   }
   inline uint8_t pixelToBitmask(unsigned int x) {
-    Serial.print(String("pxielToBitmask ") + x + " ");
     int res = pgm_read_byte(DMD_Pixel_Lut + (x & 0x07));
-    Serial.println(res);
     return res;
   }
 
@@ -256,8 +261,6 @@ private:
   int16_t cur_x;
   int16_t cur_y;
   bool pending_newline;
-  void scrollY(uint8_t fontHeight);
-  void scrollX(uint8_t charWidth);
 };
 
 // Six byte header at beginning of FontCreator font structure, stored in PROGMEM

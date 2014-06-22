@@ -48,15 +48,18 @@ size_t DMD_TextBox::write(uint8_t character) {
 
   uint8_t char_width = dmd.charWidth(character) + 1;
   while((cur_x > 0 && cur_x + char_width >= this->width) || pending_newline) { // Need to wrap to new line
-    if(cur_y + rowHeight * 2 <= height) { // No need to scroll
+    if (height >= rowHeight*2) { // Can scroll
       cur_y += rowHeight;
       cur_x = 0;
-    } else if (height >= rowHeight * 2) { // Scroll vertically, there's enough room for 2 rows of chars
-      scrollY(rowHeight);
+      if(cur_y + rowHeight > height) { // Scroll
+        int delta = cur_y + rowHeight - height; // the amount that it's over by
+      }
     } else if(pending_newline) { // No room, so just clear display
       clear();
     } else { // Scroll characters horizontally
-      scrollX(char_width - (this->width - cur_x) + 1);
+      int scroll_by = char_width - 1 - (this->width - cur_x);
+      scrollX(-scroll_by);
+      cur_x -= scroll_by;
     }
     pending_newline = false;
   }
@@ -73,17 +76,61 @@ size_t DMD_TextBox::write(uint8_t character) {
   return 1;
 }
 
-void DMD_TextBox::scrollY(uint8_t rowHeight) {
-  dmd.movePixels(left, top + rowHeight, left, top, width,
-                 (rowHeight > height) ? 0 : (height - rowHeight));
-  cur_x = 0;
+void DMD_TextBox::scrollY(int scrollBy) {
+  if(abs(scrollBy) >= height) { // scrolling over the whole display
+    // scrolling will erase everything
+    dmd.drawFilledBox(left, top, left+width-1, top+height-1, false);
+  }
+  else if(scrollBy < 0) { // Scroll up
+    dmd.movePixels(left, top - scrollBy, left, top, width, height + scrollBy);
+  }
+  else if(scrollBy > 0) { // Scroll down
+    dmd.movePixels(left, top, left, top + scrollBy, width, height - scrollBy);
+  }
+
+  cur_y += scrollBy;
+  while(cur_y < 0)
+    cur_y += height;
+  while(cur_y > height)
+    cur_y -= height;
 }
 
-void DMD_TextBox::scrollX(uint8_t charWidth) {
-  dmd.movePixels(left+charWidth, top, left, top, width - charWidth, height);
-  cur_x -= charWidth;
+
+void DMD_TextBox::scrollX(int scrollBy) {
+  if(abs(scrollBy) >= width) { // scrolling over the whole display!
+    // scrolling will erase everything
+    dmd.drawFilledBox(left, top, left+width-1, top+height-1, false);
+  }
+  else if(scrollBy < 0) { // Scroll left
+    dmd.movePixels(left-scrollBy, top, left, top, width + scrollBy, height);
+  }
+  else { // Scroll right
+    dmd.movePixels(left, top, left+scrollBy, top, width - scrollBy, height);
+  }
+
+  cur_x += scrollBy;
+  while(cur_x < 0)
+    cur_x += width;
+  while(cur_x > width)
+    cur_x -= width;
 }
 
+void DMD_TextBox::marqueeScrollX(int scrollBy) {
+  // Scrolling is basically the same as normal scrolling, but we save/restore the overlapping
+  // area in between to create the marquee effect
+  scrollBy = scrollBy % width;
+
+  DMDFrame frame = (scrollBy < 0) ?
+    dmd.subFrame(0, 0, -scrollBy, height) // scroll left
+    : dmd.subFrame(width-scrollBy, 0, scrollBy, height); // scroll right
+  scrollX(scrollBy);
+  if(scrollBy < 0)
+    ;
+}
+
+void DMD_TextBox::marqueeScrollY(int scrollBy) {
+
+}
 
 void DMD_TextBox::clear() {
   this->reset();

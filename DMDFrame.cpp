@@ -28,14 +28,15 @@ DMDFrame::DMDFrame(byte pixelsWide, byte pixelsHigh)
   font(0)
 {
   row_width_bytes = (pixelsWide + 7)/8; // on full panels pixelsWide is a multiple of 8, but for sub-regions may not be
-  height_in_panels = pixelsHigh / PANEL_HEIGHT;
+  height_in_panels = (pixelsHigh + PANEL_HEIGHT-1) / PANEL_HEIGHT;
   bitmap = (uint8_t *)malloc(bitmap_bytes());
+  memset((void *)bitmap, 0xFF, bitmap_bytes());
 }
 
 DMDFrame::DMDFrame(const DMDFrame &source) :
   width(source.width),
-  row_width_bytes(source.row_width_bytes),
   height(source.height),
+  row_width_bytes(source.row_width_bytes),
   height_in_panels(source.height_in_panels),
   font(source.font)
 {
@@ -92,34 +93,18 @@ void DMDFrame::movePixels(unsigned int from_x, unsigned int from_y,
                          unsigned int to_x, unsigned int to_y,
                          unsigned int width, unsigned int height)
 {
-  // NB: This implementation is pretty slow and uses too much RAM when non-overlapping
-  // regions are moved. Would benefit from a rewrite.
+  // NB: This implementation is actually a copy-erase so
+  // it uses more RAM than a real move implementation would
+  // do (however bypasses issues around overlapping regions.)
 
-  if(from_x >= width || from_y >= height
-     || to_x >= width || to_y >= height)
-     return;
+  if(from_x >= this->width || from_y >= this->height
+     || to_x >= this->width || to_y >= this->height)
+    return;
 
-  uint8_t pixels[(width + 7) / 8][height];
-  memset(pixels, 0, sizeof(pixels));
-
-  for(unsigned int y = 0; y < height; y++) {
-    for(unsigned int x = 0; x < width; x++) {
-      unsigned int bit = x % 8;
-      if(getPixel(from_x+x, from_y+y)) {
-        pixels[x/8][y] |= (1<<bit);
-        setPixel(from_x+x,from_y+y,false);
-      }
-    }
-  }
-
-  for(unsigned int y = 0; y < height; y++) {
-    for(unsigned int x = 0; x < width; x++) {
-      unsigned int bit = x % 8;
-      setPixel(x+to_x,y+to_y, pixels[x/8][y] & (1<<bit));
-    }
-  }
+  DMDFrame to_move = this->subFrame(from_x, from_y, width, height);
+  this->drawFilledBox(from_x,from_y,from_x+width-1,from_y+height-1,false);
+  this->copyFrame(to_move, to_x, to_y);
 }
-
 
 // Set the entire screen
 void DMDFrame::fillScreen(bool on)
@@ -204,6 +189,65 @@ void DMDFrame::drawFilledBox(unsigned int x1, unsigned int y1, unsigned int x2, 
 {
   for (unsigned int b = x1; b <= x2; b++) {
     drawLine(b, y1, b, y2, on);
+  }
+}
+
+DMDFrame DMDFrame::subFrame(unsigned int left, unsigned int top, unsigned int width, unsigned int height)
+{
+  DMDFrame result(width, height);
+
+  if((left % 8) == 0 && (width % 8) == 0) {
+    // Copying from/to byte boundaries, can do simple/efficient copies
+    for(unsigned int to_y = 0; to_y < height; to_y++) {
+      unsigned int from_y = top + to_y;
+      unsigned int from_end = pixelToBitmapIndex(left+width,from_y);
+      unsigned int to_byte = result.pixelToBitmapIndex(0,to_y);
+      for(unsigned int from_byte = pixelToBitmapIndex(left,from_y); from_byte < from_end; from_byte++) {
+        result.bitmap[to_byte++] = this->bitmap[from_byte];
+      }
+    }
+  }
+  else {
+    // Copying not from a byte boundary. Slow pixel-by-pixel for now.
+    for(unsigned int to_y = 0; to_y < height; to_y++) {
+      for(unsigned int to_x = 0; to_x < width; to_x++) {
+        bool val = this->getPixel(to_x+left,to_y+top);
+        result.setPixel(to_x,to_y,val);
+      }
+    }
+  }
+
+  return result;
+}
+
+void DMDFrame::copyFrame(DMDFrame &from, unsigned int left, unsigned int top)
+{
+  if((left % 8) == 0 && (from.width % 8) == 0) {
+    // Copying rows on byte boundaries, can do simple/efficient copies
+    unsigned int to_bottom = top + from.height;
+    if(to_bottom > this->height)
+      to_bottom = this->height;
+    unsigned int to_right = left + from.width;
+    if(to_right > this->width)
+      to_right = this->width;
+    unsigned int from_y = 0;
+    for(unsigned int to_y = top; to_y < to_bottom; to_y++) {
+      unsigned int to_end = pixelToBitmapIndex(to_right, to_y);
+      unsigned int from_byte = from.pixelToBitmapIndex(0, from_y);
+      for(unsigned int to_byte = pixelToBitmapIndex(left,to_y); to_byte < to_end; to_byte++) {
+        this->bitmap[to_byte] = from.bitmap[from_byte++];
+      }
+      from_y++;
+    }
+  }
+  else {
+    // Copying not to a byte boundary. Slow pixel-by-pixel for now.
+    for(unsigned int from_y = 0; from_y < from.height; from_y++) {
+      for(unsigned int from_x = 0; from_x < from.width; from_x++) {
+        bool val = from.getPixel(from_x,from_y);
+        this->setPixel(from_x + left, from_y + top, val);
+      }
+    }
   }
 }
 
