@@ -61,7 +61,7 @@ enum DMDTestPattern {
   PATTERN_STRIPE_1
 };
 
-//Pixel/graphics writing modes (bGraphicsMode)
+//Pixel/graphics writing modes
 enum DMDGraphicsMode {
     GRAPHICS_NORMAL, //unconditionally on
     GRAPHICS_INVERSE, // on if was going to set to off
@@ -101,6 +101,9 @@ class DMDFrame
   // Fill the screen on or off
   void fillScreen(bool on);
   inline void clearScreen() { fillScreen(false); };
+  
+  // the buffer passed must be large enough for all pixels plus a line ending
+  void debugPixelLine(unsigned int y, char *buf);
 
   // Drawing primitives
   void drawLine(int x1, int y1, int x2, int y2, DMDGraphicsMode mode=GRAPHICS_NORMAL);

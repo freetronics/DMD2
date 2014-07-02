@@ -65,7 +65,7 @@ int DMDFrame::drawChar(const int x, const int y, const char letter, DMDGraphicsM
     return width;
     
   bool inverse = false;
-    if (mode == GRAPHICS_INVERSE) {
+  if (mode == GRAPHICS_INVERSE) {
       inverse = true;
   }
 
@@ -108,9 +108,13 @@ template <class StrType> __attribute__((always_inline)) inline void _drawString(
   if (y+header.height<0)
     return;
 
+  DMDGraphicsMode invertedMode = GRAPHICS_OFF;
+  if(mode == GRAPHICS_INVERSE) {
+    invertedMode = GRAPHICS_NORMAL;
+  }
   int strWidth = 0;
   if(x > 0)
-    dmd->drawLine(x-1 , y, x-1 , y + header.height - 1, mode);
+    dmd->drawLine(x-1 , y, x-1 , y + header.height - 1, invertedMode);
 
   char c;
   for(int idx = 0; c = str[idx], c != 0; idx++) {
@@ -122,7 +126,7 @@ template <class StrType> __attribute__((always_inline)) inline void _drawString(
       int charWide = dmd->drawChar(x+strWidth, y, c, mode);
       if (charWide > 0) {
         strWidth += charWide ;
-        dmd->drawLine(x + strWidth , y, x + strWidth , y + header.height-1, mode);
+        dmd->drawLine(x + strWidth , y, x + strWidth , y + header.height-1, invertedMode);
         strWidth++;
       } else if (charWide < 0) {
         return;

@@ -85,7 +85,7 @@ inline uint8_t DMDFrame::pixelToBitmask(unsigned int x)
 }
 
 
-// Set a single LED on or off
+// Set a single LED on or off. Remember that the pixel array is inverted (bit set = LED off)
 void DMDFrame::setPixel(unsigned int x, unsigned int y, DMDGraphicsMode mode)
 {
   if(x >= pixel_width() || y >= pixel_height())
@@ -95,16 +95,17 @@ void DMDFrame::setPixel(unsigned int x, unsigned int y, DMDGraphicsMode mode)
   uint8_t bit = pixelToBitmask(x);
   switch(mode) {
      case GRAPHICS_NORMAL:
-            bitmap[byte_idx] &= ~bit; // clear bit
+            bitmap[byte_idx] &= ~bit; // clear bit - this isn't right as it clears everything else too...
             break;
      case GRAPHICS_OFF:
-            bitmap[byte_idx] |= bit; // set bit
+            bitmap[byte_idx] |= bit; // set bit (which turns it off)
             break;
-     case GRAPHICS_OR:
-          bitmap[byte_idx] |= ~bit;
+     case GRAPHICS_OR: // so bitmap must be 0xFF if all off. Or'ing another bit onto it won't clear it. Neither will or'ing the not'd version
+                       // what we really need to do is clear any bit that isn't already cleared. Sigh. So NORMAL will clear everything
+          bitmap[byte_idx] |= (~bit);
           break;
       case GRAPHICS_NOR:
-          bitmap[byte_idx] |= bit;
+          bitmap[byte_idx] |= ~bit;
           break;
       case GRAPHICS_XOR:
           bitmap[byte_idx] ^= bit;
@@ -125,6 +126,26 @@ bool DMDFrame::getPixel(unsigned int x, unsigned int y)
   uint8_t bit = pixelToBitmask(x);
   bool res = !(bitmap[byte_idx] & bit);
   return res;
+}
+
+void DMDFrame::debugPixelLine(unsigned int y, char *buf) { // buf must be large enough (2x pixels+EOL+nul), or we'll overrun
+  char *currentPixel = buf;
+  for(int x=0;x < pixel_width();x++) {
+    bool set = getPixel(x,y);
+    if(set) {
+      *currentPixel='[';
+      currentPixel++;
+      *currentPixel=']';
+    } else {
+        *currentPixel='_';
+        currentPixel++;
+        *currentPixel='_';
+    }
+    currentPixel++;
+  }
+  *currentPixel ='\n';
+  currentPixel++;
+  *currentPixel = 0; // nul terminator
 }
 
 void DMDFrame::movePixels(unsigned int from_x, unsigned int from_y,
