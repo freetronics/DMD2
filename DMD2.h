@@ -65,7 +65,6 @@ enum DMDTestPattern {
 enum DMDGraphicsMode {
     GRAPHICS_NORMAL, //unconditionally on
     GRAPHICS_INVERSE, // on if was going to set to off
-    GRAPHICS_TOGGLE, // turn off if on, and v/v
     GRAPHICS_OR, // add to pixels already on
     GRAPHICS_NOR, // subtract from pixels already on, don't turn any new ones on
     GRAPHICS_XOR, // TODO

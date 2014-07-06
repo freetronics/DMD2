@@ -68,6 +68,7 @@ inline int DMDFrame::pixelToBitmapIndex(unsigned int x, unsigned int y)
   return x / 8 + (y * unified_width() / 8);
 }
 
+// return a mask with the bit set that corresponds to X. LSB order.
 inline uint8_t DMDFrame::pixelToBitmask(unsigned int x)
 {
   // Pixel lookup, marginally faster than bit shifting the argument
@@ -95,23 +96,19 @@ void DMDFrame::setPixel(unsigned int x, unsigned int y, DMDGraphicsMode mode)
   uint8_t bit = pixelToBitmask(x);
   switch(mode) {
      case GRAPHICS_NORMAL:
-            bitmap[byte_idx] &= ~bit; // clear bit - this isn't right as it clears everything else too...
+            bitmap[byte_idx] &= ~bit; // and with the inverse of the bit - so
             break;
      case GRAPHICS_OFF:
             bitmap[byte_idx] |= bit; // set bit (which turns it off)
             break;
-     case GRAPHICS_OR: // so bitmap must be 0xFF if all off. Or'ing another bit onto it won't clear it. Neither will or'ing the not'd version
-                       // what we really need to do is clear any bit that isn't already cleared. Sigh. So NORMAL will clear everything
-          bitmap[byte_idx] |= (~bit);
+     case GRAPHICS_OR:
+          bitmap[byte_idx] = ~(~bitmap[byte_idx] | bit);
           break;
       case GRAPHICS_NOR:
-          bitmap[byte_idx] |= ~bit;
+          bitmap[byte_idx] = (~bitmap[byte_idx] | bit);
           break;
       case GRAPHICS_XOR:
-          bitmap[byte_idx] ^= bit;
-          break;
-      case GRAPHICS_TOGGLE:
-          bitmap[byte_idx] |= ~(bitmap[byte_idx] & bit);
+          bitmap[byte_idx] = ~(~bitmap[byte_idx] ^ bit);
           break;
    }
     
