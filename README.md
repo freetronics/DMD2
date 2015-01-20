@@ -20,7 +20,6 @@ The DMD2 library includes the following new features:
 # Not Yet Implemented
 
 * Test patterns
-* Marquee support
 
 # Getting Started
 

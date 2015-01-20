@@ -26,7 +26,7 @@ void DMDFrame::selectFont(const uint8_t* font)
   this->font = (uint8_t *)font;
 }
 
-int DMDFrame::drawChar(const int x, const int y, const char letter, bool inverse, const uint8_t *font)
+int DMDFrame::drawChar(const int x, const int y, const char letter, DMDGraphicsMode mode, const uint8_t *font)
 {
   if(!font)
     font = this->font;
@@ -36,10 +36,15 @@ int DMDFrame::drawChar(const int x, const int y, const char letter, bool inverse
   struct FontHeader header;
   memcpy_P(&header, (void*)font, sizeof(FontHeader));
 
+  DMDGraphicsMode invertedMode = GRAPHICS_OFF;
+  if(mode == GRAPHICS_INVERSE) {
+    invertedMode = GRAPHICS_ON;
+  }
+
   char c = letter;
   if (c == ' ') {
     int charWide = charWidth(' ');
-    this->drawFilledBox(x, y, x + charWide, y + header.height, inverse);
+    this->drawFilledBox(x, y, x + charWide, y + header.height, invertedMode);
     return charWide;
   }
   uint8_t width = 0;
@@ -64,6 +69,11 @@ int DMDFrame::drawChar(const int x, const int y, const char letter, bool inverse
   }
   if (x < -width || y < -header.height)
     return width;
+    
+  bool inverse = false;
+  if (mode == GRAPHICS_INVERSE) {
+      inverse = true;
+  }
 
   // last but not least, draw the character
   for (uint8_t j = 0; j < width; j++) { // Width
@@ -76,9 +86,17 @@ int DMDFrame::drawChar(const int x, const int y, const char letter, bool inverse
       for (uint8_t k = 0; k < 8; k++) { // Vertical bits
         if ((offset+k >= i*8) && (offset+k <= header.height)) {
           if (data & (1 << k)) {
-            setPixel(x + j, y + offset + k, !inverse);
+              if(inverse) {
+                setPixel(x + j, y + offset + k, GRAPHICS_OFF);
+              } else {
+                setPixel(x + j, y + offset + k, GRAPHICS_ON);
+              }
           } else {
-            setPixel(x + j, y + offset + k, inverse);
+              if(inverse) {
+                  setPixel(x + j, y + offset + k, GRAPHICS_ON);
+              } else {
+                  setPixel(x + j, y + offset + k, GRAPHICS_OFF);
+              }
           }
         }
       }
@@ -88,7 +106,7 @@ int DMDFrame::drawChar(const int x, const int y, const char letter, bool inverse
 }
 
 // Generic drawString implementation for various kinds of strings
-template <class StrType> __attribute__((always_inline)) inline void _drawString(DMDFrame *dmd, int x, int y, StrType str, bool inverse, const uint8_t *font)
+template <class StrType> __attribute__((always_inline)) inline void _drawString(DMDFrame *dmd, int x, int y, StrType str, DMDGraphicsMode mode, const uint8_t *font)
 {
   struct FontHeader header;
   memcpy_P(&header, font, sizeof(FontHeader));
@@ -96,9 +114,13 @@ template <class StrType> __attribute__((always_inline)) inline void _drawString(
   if (y+header.height<0)
     return;
 
+  DMDGraphicsMode invertedMode = GRAPHICS_OFF;
+  if(mode == GRAPHICS_INVERSE) {
+    invertedMode = GRAPHICS_ON;
+  }
   int strWidth = 0;
   if(x > 0)
-    dmd->drawLine(x-1 , y, x-1 , y + header.height - 1, inverse);
+    dmd->drawLine(x-1 , y, x-1 , y + header.height - 1, invertedMode);
 
   char c;
   for(int idx = 0; c = str[idx], c != 0; idx++) {
@@ -107,10 +129,10 @@ template <class StrType> __attribute__((always_inline)) inline void _drawString(
       y = y - header.height - 1;
     }
     else {
-      int charWide = dmd->drawChar(x+strWidth, y, c, inverse);
+      int charWide = dmd->drawChar(x+strWidth, y, c, mode);
       if (charWide > 0) {
         strWidth += charWide ;
-        dmd->drawLine(x + strWidth , y, x + strWidth , y + header.height-1, inverse);
+        dmd->drawLine(x + strWidth , y, x + strWidth , y + header.height-1, invertedMode);
         strWidth++;
       } else if (charWide < 0) {
         return;
@@ -148,14 +170,14 @@ public:
   }
 };
 
-void DMDFrame::drawString_P(int x, int y, const char *flashStr, bool inverse, const uint8_t *font)
+void DMDFrame::drawString_P(int x, int y, const char *flashStr, DMDGraphicsMode mode, const uint8_t *font)
 {
   if(!font)
     font = this->font;
   if(x >= (int)width || y >= height)
     return;
   _FlashStringWrapper wrapper(flashStr);
-  _drawString(this, x, y, wrapper, inverse, font);
+  _drawString(this, x, y, wrapper, mode, font);
 }
 
 unsigned int DMDFrame::stringWidth_P(const char *flashStr, const uint8_t *font)
@@ -168,22 +190,22 @@ unsigned int DMDFrame::stringWidth_P(const char *flashStr, const uint8_t *font)
 
 #endif
 
-void DMDFrame::drawString(int x, int y, const char *bChars, bool inverse, const uint8_t *font)
+void DMDFrame::drawString(int x, int y, const char *bChars, DMDGraphicsMode mode, const uint8_t *font)
 {
   if(!font)
     font = this->font;
   if (x >= (int)width || y >= height)
     return;
-  _drawString(this, x, y, bChars, inverse, font);
+  _drawString(this, x, y, bChars, mode, font);
 }
 
-void DMDFrame::drawString(int x, int y, const String &str, bool inverse, const uint8_t *font)
+void DMDFrame::drawString(int x, int y, const String &str, DMDGraphicsMode mode, const uint8_t *font)
 {
   if(!font)
     font = this->font;
   if (x >= (int)width || y >= height)
     return;
-  _drawString(this, x, y, str, inverse, font);
+  _drawString(this, x, y, str, mode, font);
 }
 
 //Find the width of a character

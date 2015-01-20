@@ -32,7 +32,7 @@ void loop() {
   delay(1000);
 
   if(n % 2 == 0) {
-    dmd.drawFilledBox(0,11,4,15, false); // Passing false here clears the box
+    dmd.drawFilledBox(0,11,4,15, GRAPHICS_OFF);
     dmd.drawBox(0,11,4,15);
   } else {
     dmd.drawFilledBox(0,11,4,15);

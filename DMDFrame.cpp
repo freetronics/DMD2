@@ -64,18 +64,34 @@ void DMDFrame::swapBuffers(DMDFrame &other)
 #endif
 }
 
-// Set a single LED on or off
-void DMDFrame::setPixel(unsigned int x, unsigned int y, const bool on)
+// Set a single LED on or off. Remember that the pixel array is inverted (bit set = LED off)
+void DMDFrame::setPixel(unsigned int x, unsigned int y, DMDGraphicsMode mode)
 {
   if(x >= width || y >= height)
      return;
 
   int byte_idx = pixelToBitmapIndex(x,y);
   uint8_t bit = pixelToBitmask(x);
-  if(on)
-    bitmap[byte_idx] &= ~bit;
-  else
-    bitmap[byte_idx] |= bit;
+  switch(mode) {
+     case GRAPHICS_ON:
+            bitmap[byte_idx] &= ~bit; // and with the inverse of the bit - so
+            break;
+     case GRAPHICS_OFF:
+            bitmap[byte_idx] |= bit; // set bit (which turns it off)
+            break;
+     case GRAPHICS_OR:
+          bitmap[byte_idx] = ~(~bitmap[byte_idx] | bit);
+          break;
+      case GRAPHICS_NOR:
+          bitmap[byte_idx] = (~bitmap[byte_idx] | bit);
+          break;
+      case GRAPHICS_XOR:
+          bitmap[byte_idx] = ~(~bitmap[byte_idx] ^ bit);
+          break;
+      case GRAPHICS_INVERSE:
+          bitmap[byte_idx] ^= bit;
+          break;
+   }
 }
 
 
@@ -87,6 +103,26 @@ bool DMDFrame::getPixel(unsigned int x, unsigned int y)
   uint8_t bit = pixelToBitmask(x);
   bool res = !(bitmap[byte_idx] & bit);
   return res;
+}
+
+void DMDFrame::debugPixelLine(unsigned int y, char *buf) { // buf must be large enough (2x pixels+EOL+nul), or we'll overrun
+  char *currentPixel = buf;
+  for(int x=0;x < width;x++) {
+    bool set = getPixel(x,y);
+    if(set) {
+      *currentPixel='[';
+      currentPixel++;
+      *currentPixel=']';
+    } else {
+        *currentPixel='_';
+        currentPixel++;
+        *currentPixel='_';
+    }
+    currentPixel++;
+  }
+  *currentPixel ='\n';
+  currentPixel++;
+  *currentPixel = 0; // nul terminator
 }
 
 void DMDFrame::movePixels(unsigned int from_x, unsigned int from_y,
@@ -102,7 +138,7 @@ void DMDFrame::movePixels(unsigned int from_x, unsigned int from_y,
     return;
 
   DMDFrame to_move = this->subFrame(from_x, from_y, width, height);
-  this->drawFilledBox(from_x,from_y,from_x+width-1,from_y+height-1,false);
+  this->drawFilledBox(from_x,from_y,from_x+width-1,from_y+height-1,GRAPHICS_OFF);
   this->copyFrame(to_move, to_x, to_y);
 }
 
@@ -112,7 +148,7 @@ void DMDFrame::fillScreen(bool on)
   memset((void *)bitmap, on ? 0 : 0xFF, bitmap_bytes());
 }
 
-void DMDFrame::drawLine(int x1, int y1, int x2, int y2, bool on)
+void DMDFrame::drawLine(int x1, int y1, int x2, int y2, DMDGraphicsMode mode)
 {
   int dy = y2 - y1;
   int dx = x2 - x1;
@@ -133,8 +169,7 @@ void DMDFrame::drawLine(int x1, int y1, int x2, int y2, bool on)
   dy = dy * 2;
   dx = dx * 2;
 
-
-  setPixel(x1, y1, on);
+  setPixel(x1, y1, mode);
   if (dx > dy) {
     int fraction = dy - (dx / 2);	// same as 2*dy - dx
     while (x1 != x2) {
@@ -144,7 +179,7 @@ void DMDFrame::drawLine(int x1, int y1, int x2, int y2, bool on)
       }
       x1 += stepx;
       fraction += dy;	// same as fraction -= 2*dy
-      setPixel(x1, y1, on);
+      setPixel(x1, y1, mode);
     }
   } else {
     int fraction = dx - (dy / 2);
@@ -155,55 +190,55 @@ void DMDFrame::drawLine(int x1, int y1, int x2, int y2, bool on)
       }
       y1 += stepy;
       fraction += dx;
-      setPixel(x1, y1, on);
+      setPixel(x1, y1, mode);
     }
   }
 }
 
-void DMDFrame::drawCircle(unsigned int xCenter, unsigned int yCenter, int radius, bool on)
+void DMDFrame::drawCircle(unsigned int xCenter, unsigned int yCenter, int radius, DMDGraphicsMode mode)
 {
   // Bresenham's circle drawing algorithm
   int x = -radius;
   int y = 0;
   int error = 2-2*radius;
   while(x < 0) {
-    setPixel(xCenter-x, yCenter+y, on);
-    setPixel(xCenter-y, yCenter-x, on);
-    setPixel(xCenter+x, yCenter-y, on);
-    setPixel(xCenter+y, yCenter+x, on);
+    setPixel(xCenter-x, yCenter+y, mode);
+    setPixel(xCenter-y, yCenter-x, mode);
+    setPixel(xCenter+x, yCenter-y, mode);
+    setPixel(xCenter+y, yCenter+x, mode);
     radius = error;
     if (radius <= y) error += ++y*2+1;
     if (radius > x || error > y) error += ++x*2+1;
   }
 }
 
-void DMDFrame::drawBox(unsigned int x1, unsigned int y1, unsigned int x2, unsigned int y2, bool on)
+void DMDFrame::drawBox(unsigned int x1, unsigned int y1, unsigned int x2, unsigned int y2, DMDGraphicsMode mode)
 {
-  drawLine(x1, y1, x2, y1, on);
-  drawLine(x2, y1, x2, y2, on);
-  drawLine(x2, y2, x1, y2, on);
-  drawLine(x1, y2, x1, y1, on);
+  drawLine(x1, y1, x2, y1, mode);
+  drawLine(x2, y1, x2, y2, mode);
+  drawLine(x2, y2, x1, y2, mode);
+  drawLine(x1, y2, x1, y1, mode);
 }
 
-void DMDFrame::drawFilledBox(unsigned int x1, unsigned int y1, unsigned int x2, unsigned int y2, bool on)
+void DMDFrame::drawFilledBox(unsigned int x1, unsigned int y1, unsigned int x2, unsigned int y2, DMDGraphicsMode mode)
 {
   for (unsigned int b = x1; b <= x2; b++) {
-    drawLine(b, y1, b, y2, on);
+    drawLine(b, y1, b, y2, mode);
   }
 }
 
 void DMDFrame::scrollY(int scrollBy) {
   if(abs(scrollBy) >= height) { // scrolling over the whole display
     // scrolling will erase everything
-    drawFilledBox(0, 0, width-1, height-1, false);
+    drawFilledBox(0, 0, width-1, height-1, GRAPHICS_OFF);
   }
   else if(scrollBy < 0) { // Scroll up
     movePixels(0, -scrollBy, 0, 0, width, height + scrollBy);
-    drawFilledBox(0, height+scrollBy, width, height, false);
+    drawFilledBox(0, height+scrollBy, width, height, GRAPHICS_OFF);
   }
   else if(scrollBy > 0) { // Scroll down
     movePixels(0, 0, 0, scrollBy, width, height - scrollBy);
-    drawFilledBox(0, 0, width, scrollBy, false);
+    drawFilledBox(0, 0, width, scrollBy, GRAPHICS_OFF);
   }
 }
 
@@ -211,15 +246,15 @@ void DMDFrame::scrollY(int scrollBy) {
 void DMDFrame::scrollX(int scrollBy) {
   if(abs(scrollBy) >= width) { // scrolling over the whole display!
     // scrolling will erase everything
-    drawFilledBox(0, 0, width-1, height-1, false);
+    drawFilledBox(0, 0, width-1, height-1, GRAPHICS_OFF);
   }
   else if(scrollBy < 0) { // Scroll left
     movePixels(-scrollBy, 0, 0, 0, width + scrollBy, height);
-    drawFilledBox(width+scrollBy, 0, width, height, false);
+    drawFilledBox(width+scrollBy, 0, width, height, GRAPHICS_OFF);
   }
   else { // Scroll right
     movePixels(0, 0, scrollBy, 0, width - scrollBy, height);
-    drawFilledBox(0, 0, scrollBy, height, false);
+    drawFilledBox(0, 0, scrollBy, height, GRAPHICS_OFF);
   }
 }
 
@@ -274,7 +309,7 @@ DMDFrame DMDFrame::subFrame(unsigned int left, unsigned int top, unsigned int wi
     for(unsigned int to_y = 0; to_y < height; to_y++) {
       for(unsigned int to_x = 0; to_x < width; to_x++) {
         bool val = this->getPixel(to_x+left,to_y+top);
-        result.setPixel(to_x,to_y,val);
+        result.setPixel(to_x,to_y,val ? GRAPHICS_ON : GRAPHICS_OFF);
       }
     }
   }
@@ -307,7 +342,7 @@ void DMDFrame::copyFrame(DMDFrame &from, unsigned int left, unsigned int top)
     for(unsigned int from_y = 0; from_y < from.height; from_y++) {
       for(unsigned int from_x = 0; from_x < from.width; from_x++) {
         bool val = from.getPixel(from_x,from_y);
-        this->setPixel(from_x + left, from_y + top, val);
+        this->setPixel(from_x + left, from_y + top, val ? GRAPHICS_ON : GRAPHICS_OFF);
       }
     }
   }

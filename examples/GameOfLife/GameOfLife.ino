@@ -16,10 +16,10 @@ SoftDMD dmd(WIDTH,HEIGHT);
 
 void populate_random_cells() {
   // Populate the initial display randomly
-  for(int x = 0; x < dmd.pixel_width(); x++) {
-    for(int y = 0; y < dmd.pixel_height(); y++) {
+  for(int x = 0; x < dmd.width; x++) {
+    for(int y = 0; y < dmd.height; y++) {
       if(random(100) < 30) // Increase 30 to a higher number to set more initial pixels
-        dmd.setPixel(x,y,true);
+        dmd.setPixel(x,y,GRAPHICS_ON);
     }
   }
 }
@@ -43,8 +43,8 @@ void loop() {
 
   // Update next generation of every pixel
   bool change = false;
-  for(int x = 0; x < dmd.pixel_width(); x++) {
-    for(int y = 0; y < dmd.pixel_height(); y++) {
+  for(int x = 0; x < dmd.width; x++) {
+    for(int y = 0; y < dmd.height; y++) {
       bool state = current_generation.getPixel(x,y);
       int live_neighbours = 0;
 
@@ -67,7 +67,7 @@ void loop() {
         state = true;
         change = true;
       }
-      dmd.setPixel(x,y,state);
+      dmd.setPixel(x,y,state ? GRAPHICS_ON : GRAPHICS_OFF);
     }
   }
 
