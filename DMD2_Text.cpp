@@ -189,39 +189,29 @@ void DMDFrame::drawString(int x, int y, const String &str, bool inverse, const u
 //Find the width of a character
 int DMDFrame::charWidth(const char letter, const uint8_t *font)
 {
+  struct FontHeader header;
+  memcpy_P(&header, (void*)this->font, sizeof(FontHeader));
+
   if(!font)
     font = this->font;
 
-  char c = letter;
-  uint8_t width = 0;
+  if(letter == ' ') {
+    // if the letter is a space then return the font's fixedWidth
+    // (set as the 'width' field in New Font dialog in GLCDCreator.)
+    return header.fixedWidth;
+  }
 
-  struct FontHeader header;
-  memcpy_P(&header, (void*)font, sizeof(FontHeader));
-
- trychar:
-
-  if (c < header.firstChar || c >= (header.firstChar + header.charCount)) {
-    if(c == ' ') {
-      c = 'n'; // if ' ' not included, try using 'n'
-      goto trychar;
-    }
+  if((uint8_t)letter < header.firstChar || (uint8_t)letter >= (header.firstChar + header.charCount)) {
     return 0;
   }
-  c -= header.firstChar;
 
-  if (header.size == 0) {
+  if(header.size == 0) {
     // zero length is flag indicating fixed width font (array does not contain width data entries)
     return header.fixedWidth;
-  } else {
-    // variable width font, read width data for character
-    width = pgm_read_byte(font + sizeof(FontHeader) + c);
   }
 
-  if(width == 0 && c == ' ') {
-    c = 'n'; // if ' ' not included, try using 'n'
-    goto trychar;
-  }
-  return width;
+  // variable width font, read width data for character
+  return pgm_read_byte(this->font + sizeof(FontHeader) + letter - header.firstChar);
 }
 
 unsigned int DMDFrame::stringWidth(const char *bChars, const uint8_t *font)
