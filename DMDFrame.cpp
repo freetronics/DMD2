@@ -192,6 +192,68 @@ void DMDFrame::drawFilledBox(unsigned int x1, unsigned int y1, unsigned int x2, 
   }
 }
 
+void DMDFrame::scrollY(int scrollBy) {
+  if(abs(scrollBy) >= height) { // scrolling over the whole display
+    // scrolling will erase everything
+    drawFilledBox(0, 0, width-1, height-1, false);
+  }
+  else if(scrollBy < 0) { // Scroll up
+    movePixels(0, -scrollBy, 0, 0, width, height + scrollBy);
+    drawFilledBox(0, height+scrollBy, width, height, false);
+  }
+  else if(scrollBy > 0) { // Scroll down
+    movePixels(0, 0, 0, scrollBy, width, height - scrollBy);
+    drawFilledBox(0, 0, width, scrollBy, false);
+  }
+}
+
+
+void DMDFrame::scrollX(int scrollBy) {
+  if(abs(scrollBy) >= width) { // scrolling over the whole display!
+    // scrolling will erase everything
+    drawFilledBox(0, 0, width-1, height-1, false);
+  }
+  else if(scrollBy < 0) { // Scroll left
+    movePixels(-scrollBy, 0, 0, 0, width + scrollBy, height);
+    drawFilledBox(width+scrollBy, 0, width, height, false);
+  }
+  else { // Scroll right
+    movePixels(0, 0, scrollBy, 0, width - scrollBy, height);
+    drawFilledBox(0, 0, scrollBy, height, false);
+  }
+}
+
+void DMDFrame::marqueeScrollX(int scrollBy) {
+  // Scrolling is basically the same as normal scrolling, but we save/restore the overlapping
+  // area in between to create the marquee effect
+  scrollBy = scrollBy % width;
+
+  if(scrollBy < 0)  { // Scroll left
+    DMDFrame frame = subFrame(0, 0, -scrollBy, height); // save leftmost
+    movePixels(-scrollBy, 0, 0, 0, width + scrollBy, height); // move
+    copyFrame(frame, width+scrollBy, 0); // drop back at right edge
+  } else { // Scroll right
+    DMDFrame frame = subFrame(width-scrollBy, 0, scrollBy, height); // save rightmost
+    movePixels(0, 0, scrollBy, 0, width - scrollBy, height); // move
+    copyFrame(frame, 0, 0); // drop back at left edge
+  }
+}
+
+void DMDFrame::marqueeScrollY(int scrollBy) {
+  scrollBy = scrollBy % height;
+
+  if(scrollBy < 0) { // Scroll up
+    DMDFrame frame = subFrame(0, 0, width, -scrollBy); // save topmost
+    movePixels(0, -scrollBy, 0, 0, width, height+scrollBy); // move
+    copyFrame(frame, 0, height+scrollBy); // drop back at bottom edge
+  } else { // Scroll down
+    DMDFrame frame = subFrame(0, height-scrollBy, width, scrollBy); // save bottommost
+    movePixels(0, 0, 0, scrollBy, width, height-scrollBy); // move
+    copyFrame(frame, 0, 0); // drop back at top edge
+  }
+}
+
+
 DMDFrame DMDFrame::subFrame(unsigned int left, unsigned int top, unsigned int width, unsigned int height)
 {
   DMDFrame result(width, height);

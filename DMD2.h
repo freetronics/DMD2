@@ -132,6 +132,12 @@ class DMDFrame
   unsigned int stringWidth(const char *bChars, const uint8_t *font = NULL);
   unsigned int stringWidth(const String &str, const uint8_t *font = NULL);
 
+  // Scrolling & marquee support
+  void scrollY(int scrollBy);
+  void scrollX(int scrollBy);
+  void marqueeScrollX(int scrollBy);
+  void marqueeScrollY(int scrollBy);
+
   void swapBuffers(DMDFrame &other);
 
   const byte width; // in pixels
@@ -250,10 +256,9 @@ public:
   void clear();
   void reset();
   void invertDisplay() { inverted = !inverted; }
+
   void scrollY(int scrollBy);
   void scrollX(int scrollBy);
-  void marqueeScrollX(int scrollBy);
-  void marqueeScrollY(int scrollBy);
 private:
   DMDFrame &dmd;
   bool inverted;

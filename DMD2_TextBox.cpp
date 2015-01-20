@@ -115,23 +115,6 @@ void DMD_TextBox::scrollX(int scrollBy) {
     cur_x -= width;
 }
 
-void DMD_TextBox::marqueeScrollX(int scrollBy) {
-  // Scrolling is basically the same as normal scrolling, but we save/restore the overlapping
-  // area in between to create the marquee effect
-  scrollBy = scrollBy % width;
-
-  DMDFrame frame = (scrollBy < 0) ?
-    dmd.subFrame(0, 0, -scrollBy, height) // scroll left
-    : dmd.subFrame(width-scrollBy, 0, scrollBy, height); // scroll right
-  scrollX(scrollBy);
-  if(scrollBy < 0)
-    ;
-}
-
-void DMD_TextBox::marqueeScrollY(int scrollBy) {
-
-}
-
 void DMD_TextBox::clear() {
   this->reset();
   dmd.drawFilledBox(left,top,left+width,top+height,inverted);
