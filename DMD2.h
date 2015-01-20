@@ -115,6 +115,9 @@ class DMDFrame
 #endif
   void drawString(int x, int y, const char *bChars, bool inverse = false, const uint8_t *font = NULL);
   void drawString(int x, int y, const String &str, bool inverse = false, const uint8_t *font = NULL);
+  inline void drawString(int x, int y, const __FlashStringHelper *flashStr, bool inverse = false, const uint8_t *font = NULL) {
+    return drawString_P(x,y,(const char*)flashStr, inverse, font);
+  }
 
   //Find the width of a character
   int charWidth(const char letter, const uint8_t *font = NULL);
