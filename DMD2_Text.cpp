@@ -36,10 +36,7 @@ int DMDFrame::drawChar(const int x, const int y, const char letter, DMDGraphicsM
   struct FontHeader header;
   memcpy_P(&header, (void*)font, sizeof(FontHeader));
 
-  DMDGraphicsMode invertedMode = GRAPHICS_OFF;
-  if(mode == GRAPHICS_INVERSE) {
-    invertedMode = GRAPHICS_ON;
-  }
+  DMDGraphicsMode invertedMode = inverseMode(mode);
 
   char c = letter;
   if (c == ' ') {
@@ -114,10 +111,7 @@ template <class StrType> __attribute__((always_inline)) inline void _drawString(
   if (y+header.height<0)
     return;
 
-  DMDGraphicsMode invertedMode = GRAPHICS_OFF;
-  if(mode == GRAPHICS_INVERSE) {
-    invertedMode = GRAPHICS_ON;
-  }
+  DMDGraphicsMode invertedMode = inverseMode(mode);
   int strWidth = 0;
   if(x > 0)
     dmd->drawLine(x-1 , y, x-1 , y + header.height - 1, invertedMode);

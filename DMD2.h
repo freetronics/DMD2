@@ -64,12 +64,28 @@ enum DMDTestPattern {
 
 //Pixel/graphics writing modes
 enum DMDGraphicsMode {
-    GRAPHICS_ON, //unconditionally on
+    GRAPHICS_OFF, // unconditionally off (pixel turns off)
+    GRAPHICS_ON, //unconditionally on (pixel turns on, the usual default for drawing)
     GRAPHICS_INVERSE, // on if was going to set to off
     GRAPHICS_OR, // add to pixels already on
     GRAPHICS_NOR, // subtract from pixels already on, don't turn any new ones on
     GRAPHICS_XOR, // swap on/off state of pixels
-    GRAPHICS_OFF // unconditionally off
+    GRAPHICS_NOOP // No-Op, ie don't actually change anything
+};
+
+// Return the inverse/"clear" version of the given mode
+// ie for normal pixel-on modes, the "clear" is to turn off.
+// for inverse mode, it's to turn on.
+// for all other modes, this is kind of meaningless so we return a no-op
+inline static DMDGraphicsMode inverseMode(DMDGraphicsMode mode) {
+  switch(mode) {
+    case GRAPHICS_ON:
+      return GRAPHICS_OFF;
+    case GRAPHICS_INVERSE:
+      return GRAPHICS_ON;
+    default:
+      return GRAPHICS_NOOP;
+  }
 };
 
 class DMD_TextBox;

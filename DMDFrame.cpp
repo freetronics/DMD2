@@ -86,11 +86,11 @@ void DMDFrame::setPixel(unsigned int x, unsigned int y, DMDGraphicsMode mode)
           bitmap[byte_idx] = (~bitmap[byte_idx] | bit);
           break;
       case GRAPHICS_XOR:
-          bitmap[byte_idx] = ~(~bitmap[byte_idx] ^ bit);
-          break;
-      case GRAPHICS_INVERSE:
           bitmap[byte_idx] ^= bit;
           break;
+      case GRAPHICS_INVERSE:
+      case GRAPHICS_NOOP:
+        break;
    }
 }
 

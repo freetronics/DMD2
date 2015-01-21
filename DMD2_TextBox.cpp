@@ -83,7 +83,7 @@ size_t DMD_TextBox::write(uint8_t character) {
 void DMD_TextBox::scrollY(int scrollBy) {
   if(abs(scrollBy) >= height) { // scrolling over the whole display
     // scrolling will erase everything
-    dmd.drawFilledBox(left, top, left+width-1, top+height-1, GRAPHICS_OFF);
+    dmd.drawFilledBox(left, top, left+width-1, top+height-1, inverted ? GRAPHICS_ON : GRAPHICS_OFF);
   }
   else if(scrollBy < 0) { // Scroll up
     dmd.movePixels(left, top - scrollBy, left, top, width, height + scrollBy);
@@ -103,7 +103,7 @@ void DMD_TextBox::scrollY(int scrollBy) {
 void DMD_TextBox::scrollX(int scrollBy) {
   if(abs(scrollBy) >= width) { // scrolling over the whole display!
     // scrolling will erase everything
-    dmd.drawFilledBox(left, top, left+width-1, top+height-1, GRAPHICS_OFF);
+    dmd.drawFilledBox(left, top, left+width-1, top+height-1, inverted ? GRAPHICS_ON : GRAPHICS_OFF);
   }
   else if(scrollBy < 0) { // Scroll left
     dmd.movePixels(left-scrollBy, top, left, top, width + scrollBy, height);
