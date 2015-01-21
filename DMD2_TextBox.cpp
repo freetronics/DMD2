@@ -57,9 +57,8 @@ size_t DMD_TextBox::write(uint8_t character) {
     } else if(pending_newline) { // No room, so just clear display
       clear();
     } else { // Scroll characters horizontally
-      int scroll_by = char_width - 1 - (this->width - cur_x);
+      int scroll_by = char_width - (this->width - cur_x - 1);
       scrollX(-scroll_by);
-      cur_x -= scroll_by;
     }
     pending_newline = false;
   }

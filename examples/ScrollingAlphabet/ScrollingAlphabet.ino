@@ -15,7 +15,7 @@ const int WIDTH = 1;
 const uint8_t *FONT = Arial14;
 //const uint8_t *FONT = SystemFont5x7;
 
-const char *MESSAGE = "abcdefghijklmnopqrstuwxyz";
+const char *MESSAGE = "abcdefghijklmnopqrstuvwxyz";
 
 SoftDMD dmd(WIDTH,1);  // DMD controls the entire display
 DMD_TextBox box(dmd);  // "box" provides a text box to automatically write to/scroll the display
@@ -37,5 +37,4 @@ void loop() {
     delay(200);
     next++;
   }
-  Serial.print('\n'); // Next line
 }
