@@ -26,7 +26,7 @@ void loop() {
   Serial.println(F("..."));
   box.print(' ');
   box.print(counter);
-  box.println(F(" . . ."));
+  box.println(F("..."));
   counter--;
   delay(1000);
 
