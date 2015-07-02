@@ -138,16 +138,15 @@ class DMDFrame
   void selectFont(const uint8_t* font);
   const inline uint8_t *getFont(void) { return font; }
   int drawChar(const int x, const int y, const char letter, DMDGraphicsMode mode=GRAPHICS_ON, const uint8_t *font = NULL);
-#ifdef __AVR__
-  void drawString_P(int x, int y, const char *flashStr, DMDGraphicsMode mode=GRAPHICS_ON, const uint8_t *font = NULL);
-
-#endif
 
   void drawString(int x, int y, const char *bChars, DMDGraphicsMode mode=GRAPHICS_ON, const uint8_t *font = NULL);
   void drawString(int x, int y, const String &str, DMDGraphicsMode mode=GRAPHICS_ON, const uint8_t *font = NULL);
+#ifdef __AVR__
+  void drawString_P(int x, int y, const char *flashStr, DMDGraphicsMode mode=GRAPHICS_ON, const uint8_t *font = NULL);
   inline void drawString(int x, int y, const __FlashStringHelper *flashStr, DMDGraphicsMode mode=GRAPHICS_ON, const uint8_t *font = NULL) {
     return drawString_P(x,y,(const char*)flashStr, mode, font);
   }
+#endif
 
   //Find the width of a character
   int charWidth(const char letter, const uint8_t *font = NULL);
