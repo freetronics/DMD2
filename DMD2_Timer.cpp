@@ -90,7 +90,7 @@ void BaseDMD::end()
   scanDisplay();
 }
 
-#else // __ARM__, Due assumed for now
+#elif defined (__arm__) // __ARM__, Due assumed for now
 
 /* ARM timer callback (ISR context), checks timer status then scans all running DMDs */
 void TC7_Handler(){
@@ -124,6 +124,37 @@ void BaseDMD::end()
     NVIC_EnableIRQ(TC7_IRQn); // Still some DMDs running
   else
     TC_Stop(TC2, 1);
+  clearScreen();
+  scanDisplay();
+}
+
+#elif defined (ESP8266)
+
+void BaseDMD::begin()
+{
+  beginNoTimer();
+  timer1_disable();
+  
+  register_running_dmd(this);
+  
+  timer1_isr_init();
+  timer1_attachInterrupt(scan_running_dmds);
+  timer1_enable(TIM_DIV16, TIM_EDGE, TIM_LOOP);
+#if defined(F_CPU) && (F_CPU == 160000000L)
+  timer1_write(50000); // 50000 ticks = ~5ms with /16 divider at 160MHz
+#else
+  timer1_write(25000); // 25000 ticks = ~5ms with /16 divider at 80MHz
+#endif
+}
+
+void BaseDMD::end()
+{
+  bool still_running = unregister_running_dmd(this);
+  if(!still_running)
+  {
+    timer1_detachInterrupt();
+    timer1_disable();
+  }
   clearScreen();
   scanDisplay();
 }

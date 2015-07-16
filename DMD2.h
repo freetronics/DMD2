@@ -141,7 +141,7 @@ class DMDFrame
 
   void drawString(int x, int y, const char *bChars, DMDGraphicsMode mode=GRAPHICS_ON, const uint8_t *font = NULL);
   void drawString(int x, int y, const String &str, DMDGraphicsMode mode=GRAPHICS_ON, const uint8_t *font = NULL);
-#ifdef __AVR__
+#if defined(__AVR__) || defined(ESP8266)
   void drawString_P(int x, int y, const char *flashStr, DMDGraphicsMode mode=GRAPHICS_ON, const uint8_t *font = NULL);
   inline void drawString(int x, int y, const __FlashStringHelper *flashStr, DMDGraphicsMode mode=GRAPHICS_ON, const uint8_t *font = NULL) {
     return drawString_P(x,y,(const char*)flashStr, mode, font);
@@ -152,7 +152,7 @@ class DMDFrame
   int charWidth(const char letter, const uint8_t *font = NULL);
 
   //Find the width of a string (width of all characters plus 1 pixel "kerning" between each character)
-#ifdef __AVR__
+#if defined(__AVR__) || defined(ESP8266)
   unsigned int stringWidth_P(const char *flashStr, const uint8_t *font = NULL);
   inline unsigned int stringWidth(const __FlashStringHelper *flashStr, const uint8_t *font = NULL) {
     return stringWidth_P((const char*)flashStr, font);
@@ -262,6 +262,9 @@ protected:
   void writeSPIData(volatile uint8_t *rows[4], const int rowsize);
 };
 
+#ifdef ESP8266
+// No SoftDMD for ESP8266 for now
+#else
 class SoftDMD : public BaseDMD
 {
 public:
@@ -299,6 +302,7 @@ private:
   int16_t cur_y;
   bool pending_newline;
 };
+#endif
 
 // Six byte header at beginning of FontCreator font structure, stored in PROGMEM
 struct FontHeader {

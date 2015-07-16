@@ -23,7 +23,11 @@
 typedef intptr_t port_reg_t;
 
 SPIDMD::SPIDMD(byte panelsWide, byte panelsHigh)
+#ifdef ESP8266
+  : BaseDMD(panelsWide, panelsHigh, 0, 16, 12, 15)
+#else
   : BaseDMD(panelsWide, panelsHigh, 9, 6, 7, 8)
+#endif
 {
 }
 
@@ -41,6 +45,8 @@ void SPIDMD::beginNoTimer()
   SPI.setDataMode(SPI_MODE0);	// CPOL=0, CPHA=0
 #ifdef __AVR__
   SPI.setClockDivider(SPI_CLOCK_DIV4); // 4MHz clock. 8MHz (DIV2 not DIV4) is possible if you have short cables. Longer cables may need DIV8/DIV16.
+#elif defined(ESP8266)
+  SPI.setFrequency(4000000); // ESP can run at 80mhz or 160mhz, setting frequency directly is easier, set to 4MHz.
 #else
   SPI.setClockDivider(20); // 4.2MHz on Due. Same comment as above applies (lower numbers = less divider = faster speeds.)
 #endif
@@ -96,6 +102,9 @@ void BaseDMD::scanDisplay()
     analogWrite(pin_noe, brightness);
 }
 
+#ifdef ESP8266
+// No SoftDMD for ESP8266 for now
+#else
 SoftDMD::SoftDMD(byte panelsWide, byte panelsHigh)
   : BaseDMD(panelsWide, panelsHigh, 9, 6, 7, 8),
     pin_clk(13),
@@ -152,6 +161,7 @@ void SoftDMD::writeSPIData(volatile uint8_t *rows[4], const int rowsize)
     softSPITransfer(*(rows[0]++), port_r_data, mask_r_data, port_clk, mask_clk);
   }
 }
+#endif
 
 BaseDMD::BaseDMD(byte panelsWide, byte panelsHigh, byte pin_noe, byte pin_a, byte pin_b, byte pin_sck)
   :
@@ -161,7 +171,11 @@ BaseDMD::BaseDMD(byte panelsWide, byte panelsHigh, byte pin_noe, byte pin_a, byt
   pin_a(pin_a),
   pin_b(pin_b),
   pin_sck(pin_sck),
+#ifdef ESP8266
+  default_pins(pin_noe == 0 && pin_a == 16 && pin_b == 12 && pin_sck == 15),
+#else
   default_pins(pin_noe == 9 && pin_a == 6 && pin_b == 7 && pin_sck == 8),
+#endif
   pin_other_cs(-1),
   brightness(255)
 {
