@@ -280,6 +280,7 @@ private:
   byte pin_clk;
   byte pin_r_data;
 };
+#endif
 
 class DMD_TextBox : public Print {
 public:
@@ -302,7 +303,6 @@ private:
   int16_t cur_y;
   bool pending_newline;
 };
-#endif
 
 // Six byte header at beginning of FontCreator font structure, stored in PROGMEM
 struct FontHeader {
