@@ -141,9 +141,9 @@ void BaseDMD::begin()
   timer1_attachInterrupt(scan_running_dmds);
   timer1_enable(TIM_DIV16, TIM_EDGE, TIM_LOOP);
 #if defined(F_CPU) && (F_CPU == 160000000L)
-  timer1_write(50000); // 50000 ticks = ~5ms with /16 divider at 160MHz
+  timer1_write(5000); // 5000 ticks
 #else
-  timer1_write(25000); // 25000 ticks = ~5ms with /16 divider at 80MHz
+  timer1_write(2500); // 2500 ticks seems to work nicely for no flicker.
 #endif
 }
 
