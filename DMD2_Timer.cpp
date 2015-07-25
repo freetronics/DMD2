@@ -33,6 +33,8 @@
 
 //#define NO_TIMERS
 
+#define ESP8266_TIMER0_TICKS 100000 //Number of ticks between DMD refreshes on the ESP8266, theoretically, there are 80 ticks per microsecond, 
+
 #ifdef NO_TIMERS
 
 // Timer-free stub code which gets compiled in only if NO_TIMERS is set
@@ -133,18 +135,13 @@ void BaseDMD::end()
 void BaseDMD::begin()
 {
   beginNoTimer();
-  timer1_disable();
+  timer0_detachInterrupt();
   
   register_running_dmd(this);
   
-  timer1_isr_init();
-  timer1_attachInterrupt(scan_running_dmds);
-  timer1_enable(TIM_DIV16, TIM_EDGE, TIM_LOOP);
-#if defined(F_CPU) && (F_CPU == 160000000L)
-  timer1_write(5000); // 5000 ticks
-#else
-  timer1_write(2500); // 2500 ticks seems to work nicely for no flicker.
-#endif
+  timer0_isr_init();
+  timer0_attachInterrupt(scan_running_dmds);
+  timer0_write(ESP.getCycleCount() + ESP8266_TIMER0_TICKS);
 }
 
 void BaseDMD::end()
@@ -152,8 +149,7 @@ void BaseDMD::end()
   bool still_running = unregister_running_dmd(this);
   if(!still_running)
   {
-    timer1_detachInterrupt();
-    timer1_disable();
+    timer0_detachInterrupt(); // timer0 disables itself when the CPU cycle count reaches its own value, hence ESP.getCycleCount()
   }
   clearScreen();
   scanDisplay();
@@ -222,6 +218,9 @@ static void inline __attribute__((always_inline)) scan_running_dmds()
       next->scanDisplay();
     }
   }
+#if defined (ESP8266) && !defined (NO_TIMERS)
+  timer0_write(ESP.getCycleCount() + ESP8266_TIMER0_TICKS);
+#endif
 }
 
 
