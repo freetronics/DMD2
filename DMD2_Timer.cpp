@@ -33,7 +33,7 @@
 
 //#define NO_TIMERS
 
-#define ESP8266_TIMER0_TICKS 100000 //Number of ticks between DMD refreshes on the ESP8266, theoretically, there are 80 ticks per microsecond, 
+#define ESP8266_TIMER0_TICKS microsecondsToClockCycles(1000) // 1000 microseconds between calls to scan_running_dmds seems to work well.
 
 #ifdef NO_TIMERS
 
