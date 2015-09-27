@@ -24,7 +24,7 @@ typedef intptr_t port_reg_t;
 
 SPIDMD::SPIDMD(byte panelsWide, byte panelsHigh)
 #ifdef ESP8266
-  : BaseDMD(panelsWide, panelsHigh, 0, 16, 12, 15)
+  : BaseDMD(panelsWide, panelsHigh, 15, 16, 12, 0)
 #else
   : BaseDMD(panelsWide, panelsHigh, 9, 6, 7, 8)
 #endif
@@ -172,7 +172,7 @@ BaseDMD::BaseDMD(byte panelsWide, byte panelsHigh, byte pin_noe, byte pin_a, byt
   pin_b(pin_b),
   pin_sck(pin_sck),
 #ifdef ESP8266
-  default_pins(pin_noe == 0 && pin_a == 16 && pin_b == 12 && pin_sck == 15),
+  default_pins(pin_noe == 15 && pin_a == 16 && pin_b == 12 && pin_sck == 0),
 #else
   default_pins(pin_noe == 9 && pin_a == 6 && pin_b == 7 && pin_sck == 8),
 #endif
