@@ -50,11 +50,10 @@ void BaseDMD::end() {
 // Forward declarations for tracking currently running DMDs
 static void register_running_dmd(BaseDMD *dmd);
 static bool unregister_running_dmd(BaseDMD *dmd);
-
-#ifndef (ESP8266)
 static void inline scan_running_dmds();
-#else
-static void ICACHE_RAM_ATTR scan_running_dmds(); //keep scan_running_dmds in RAM on esp8266
+
+#ifdef ESP8266
+static void ICACHE_RAM_ATTR esp8266_ISR_wrapper();
 #endif
 
 #ifdef __AVR__
@@ -141,11 +140,11 @@ void BaseDMD::begin()
 {
   beginNoTimer();
   timer0_detachInterrupt();
-  
+
   register_running_dmd(this);
-  
+
   timer0_isr_init();
-  timer0_attachInterrupt(scan_running_dmds);
+  timer0_attachInterrupt(esp8266_ISR_wrapper);
   timer0_write(ESP.getCycleCount() + ESP8266_TIMER0_TICKS);
 }
 
@@ -214,21 +213,16 @@ static bool unregister_running_dmd(BaseDMD *dmd)
   return still_running;
 }
 
-// ESP8266 RAM cached ISR handler, because loading procedures from flash for an ISR is a bad idea
-#if defined (ESP8266)
-static void inline ICACHE_RAM_ATTR scan_running_dmds()
+// ESP8266 ISR Wrapper
+#ifdef ESP8266
+static void inline ICACHE_RAM_ATTR esp8266_ISR_wrapper()
 {
-  if(((int)0x40200000)) {
-    for(int i = 0; i < running_dmd_len; i++) {
-      BaseDMD *next = (BaseDMD*)running_dmds[i];
-      if(next) {
-        next->scanDisplay();
-      }
-    }
+  if(((int)0x40200000)) { //Make sure flash isn't being accessed.
+    scan_running_dmds();
   }
   timer0_write(ESP.getCycleCount() + ESP8266_TIMER0_TICKS);
 }
-#elseif
+#endif
 
 // This method is called from timer ISR to scan all the DMD instances present in the running sketch
 static void inline __attribute__((always_inline)) scan_running_dmds()
@@ -240,6 +234,5 @@ static void inline __attribute__((always_inline)) scan_running_dmds()
     }
   }
 }
-#endif
 
 #endif // ifdef NO_TIMERS
