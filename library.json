@@ -7,6 +7,19 @@
     "type": "git",
     "url": "https://github.com/freetronics/DMD2.git"
   },
+  "authors":
+  [
+    {
+      "name": "Harrison Mclean",
+      "maintainer": true
+    },
+    {
+      "name": "Angus Gratton",
+    },
+    {
+      "name": "Freetronics",
+    },
+  ],
   "version": "0.0.4",
   "frameworks": "arduino",
   "platforms": [
