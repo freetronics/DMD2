@@ -1,0 +1,17 @@
+{
+  "name": "DMD2",
+  "keywords": "DMD, DMD2, avr, sam, ESP8266",
+  "description": "Dot Matrix Display Library 2",
+  "repository":
+  {
+    "type": "git",
+    "url": "https://github.com/freetronics/DMD2.git"
+  },
+  "version": "0.0.4",
+  "frameworks": "arduino",
+  "platforms": [
+    "atmelavr",
+    "atmelsam",
+    "espressif8266"
+  ]
+}

@@ -33,7 +33,7 @@
 
 //#define NO_TIMERS
 
-#define ESP8266_TIMER0_TICKS microsecondsToClockCycles(1000) // 1000 microseconds between calls to scan_running_dmds seems to work well.
+#define ESP8266_TIMER0_TICKS microsecondsToClockCycles(250) // 250 microseconds between calls to scan_running_dmds seems to works better than 1000.
 
 #ifdef NO_TIMERS
 
@@ -51,6 +51,10 @@ void BaseDMD::end() {
 static void register_running_dmd(BaseDMD *dmd);
 static bool unregister_running_dmd(BaseDMD *dmd);
 static void inline scan_running_dmds();
+
+#ifdef ESP8266
+static void ICACHE_RAM_ATTR esp8266_ISR_wrapper();
+#endif
 
 #ifdef __AVR__
 
@@ -136,11 +140,11 @@ void BaseDMD::begin()
 {
   beginNoTimer();
   timer0_detachInterrupt();
-  
+
   register_running_dmd(this);
-  
+
   timer0_isr_init();
-  timer0_attachInterrupt(scan_running_dmds);
+  timer0_attachInterrupt(esp8266_ISR_wrapper);
   timer0_write(ESP.getCycleCount() + ESP8266_TIMER0_TICKS);
 }
 
@@ -209,6 +213,17 @@ static bool unregister_running_dmd(BaseDMD *dmd)
   return still_running;
 }
 
+// ESP8266 ISR Wrapper
+#ifdef ESP8266
+static void inline ICACHE_RAM_ATTR esp8266_ISR_wrapper()
+{
+  if(((int)0x40200000)) { //Make sure flash isn't being accessed.
+    scan_running_dmds();
+  }
+  timer0_write(ESP.getCycleCount() + ESP8266_TIMER0_TICKS);
+}
+#endif
+
 // This method is called from timer ISR to scan all the DMD instances present in the running sketch
 static void inline __attribute__((always_inline)) scan_running_dmds()
 {
@@ -218,10 +233,6 @@ static void inline __attribute__((always_inline)) scan_running_dmds()
       next->scanDisplay();
     }
   }
-#if defined (ESP8266) && !defined (NO_TIMERS)
-  timer0_write(ESP.getCycleCount() + ESP8266_TIMER0_TICKS);
-#endif
 }
-
 
 #endif // ifdef NO_TIMERS
