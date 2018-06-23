@@ -148,7 +148,7 @@ class DMDFrame
 #endif
 
   //Find the width of a character
-  int charWidth(const char letter, const uint8_t *font = NULL);
+  int charWidth(char letter, const uint8_t *font = NULL);
 
   //Find the width of a string (width of all characters plus 1 pixel "kerning" between each character)
 #if defined(__AVR__) || defined(ESP8266)
