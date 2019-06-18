@@ -21,14 +21,14 @@
  If not, see <http://www.gnu.org/licenses/>.
 */
 
-DMDFrame::DMDFrame(byte pixelsWide, byte pixelsHigh)
+DMDFrame::DMDFrame(uint16_t pixelsWide, uint16_t pixelsHigh)
   :
   width(pixelsWide),
   height(pixelsHigh),
   font(0)
 {
-  row_width_bytes = (pixelsWide + 7)/8; // on full panels pixelsWide is a multiple of 8, but for sub-regions may not be
-  height_in_panels = (pixelsHigh + PANEL_HEIGHT-1) / PANEL_HEIGHT;
+  row_width_bytes = (byte)((pixelsWide + 7)/8); // on full panels pixelsWide is a multiple of 8, but for sub-regions may not be
+  height_in_panels = (byte)((pixelsHigh + PANEL_HEIGHT-1) / PANEL_HEIGHT);
   bitmap = (uint8_t *)malloc(bitmap_bytes());
   memset((void *)bitmap, 0xFF, bitmap_bytes());
 }
