@@ -98,7 +98,7 @@ class DMDFrame
 {
   friend class DMD_TextBox;
  public:
-  DMDFrame(byte pixelsWide, byte pixelsHigh);
+  DMDFrame(uint16_t pixelsWide, uint16_t pixelsHigh);
   DMDFrame(const DMDFrame &source);
   virtual ~DMDFrame();
 
@@ -168,8 +168,8 @@ class DMDFrame
 
   void swapBuffers(DMDFrame &other);
 
-  const byte width; // in pixels
-  const byte height; // in pixels
+  const uint16_t width; // in pixels
+  const uint16_t height; // in pixels
  protected:
   volatile uint8_t *bitmap;
   byte row_width_bytes; // width in bitmap, bit-per-pixel rounded up to nearest byte
