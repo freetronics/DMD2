@@ -171,7 +171,7 @@ class DMDFrame
   const uint16_t width; // in pixels
   const uint16_t height; // in pixels
  protected:
-  volatile uint8_t *bitmap;uint16_t
+  volatile uint8_t *bitmap;
   byte row_width_bytes; // width in bitmap, bit-per-pixel rounded up to nearest byte
   byte height_in_panels; // in panels
 
