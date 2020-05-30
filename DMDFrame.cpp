@@ -70,11 +70,11 @@ void DMDFrame::setPixel(unsigned int x, unsigned int y, DMDGraphicsMode mode)
   if(x >= width || y >= height)
      return;
   //karo flip begin
-  if(height/PANEL_HEIGHT > 1){
+  if((height/PANEL_HEIGHT > 1) && boolFlipPanels){
 	  bool boolpar = ((height/PANEL_HEIGHT) % 2 == 0) ? true:false;
       int delY = y/PANEL_HEIGHT;
       int zvi = y % PANEL_HEIGHT;
-        if (((delY) % 2 == 0)&& boolpar || ((delY) % 2 != 0)&& !boolpar ){ 
+        if ((delY % 2 == 0)&& boolpar || (delY % 2 != 0)&& !boolpar ){ 
           zvi = PANEL_HEIGHT-1 - zvi;
           y = (PANEL_HEIGHT*delY)+zvi;
           x = width-1 - x;
