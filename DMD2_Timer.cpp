@@ -35,6 +35,13 @@
 
 #define ESP8266_TIMER0_TICKS microsecondsToClockCycles(250) // 250 microseconds between calls to scan_running_dmds seems to works better than 1000.
 
+// Assuming esp32 using frequency of 80MHz...
+#define ESP32_TIMER0 0
+// run counter to increment every 1 microseconds
+#define ESP32_TIMER0_PRESCALER 80
+// call scan_running_dmds every 250 microseconds on ESP32
+#define ESP32_TIMER0_RELOAD_ON 250
+
 #ifdef NO_TIMERS
 
 // Timer-free stub code which gets compiled in only if NO_TIMERS is set
@@ -154,6 +161,50 @@ void BaseDMD::end()
   if(!still_running)
   {
     timer0_detachInterrupt(); // timer0 disables itself when the CPU cycle count reaches its own value, hence ESP.getCycleCount()
+  }
+  clearScreen();
+  scanDisplay();
+}
+
+#elif defined(ESP32)
+hw_timer_t *timer = NULL;
+portMUX_TYPE timerMux = portMUX_INITIALIZER_UNLOCKED;
+
+void IRAM_ATTR esp32_ISR_wrapper(){
+  // claim interrupt handling
+  portENTER_CRITICAL_ISR(&timerMux);
+
+  scan_running_dmds();
+
+  // end interrupt handling
+  portEXIT_CRITICAL_ISR(&timerMux);
+}
+
+void BaseDMD::begin()
+{
+  beginNoTimer();
+
+  timer = timerBegin(ESP32_TIMER0, ESP32_TIMER0_PRESCALER, true);
+
+  register_running_dmd(this);
+
+  timerAttachInterrupt(timer, &esp32_ISR_wrapper, true);
+  timerAlarmWrite(timer, ESP32_TIMER0_RELOAD_ON, true);
+
+  // safety net
+  yield();
+  timerAlarmEnable(timer);
+}
+
+void BaseDMD::end()
+{
+  bool still_running = unregister_running_dmd(this);
+  if(!still_running)
+  {
+    timerAlarmDisable(timer);
+    timerDetachInterrupt(timer);
+    timerEnd(timer);
+    timer = NULL;
   }
   clearScreen();
   scanDisplay();

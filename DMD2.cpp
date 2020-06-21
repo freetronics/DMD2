@@ -23,8 +23,10 @@
 typedef intptr_t port_reg_t;
 
 SPIDMD::SPIDMD(byte panelsWide, byte panelsHigh)
-#ifdef ESP8266
-  : BaseDMD(panelsWide, panelsHigh, 15, 16, 12, 0)
+#if defined(ESP8266)
+  : BaseDMD(panelsWide, panelsHigh, 0, 16, 12, 15)
+#elif defined(ESP32)
+  : BaseDMD(panelsWide, panelsHigh, 14, 27, 26, 25)
 #else
   : BaseDMD(panelsWide, panelsHigh, 9, 6, 7, 8)
 #endif
@@ -45,7 +47,7 @@ void SPIDMD::beginNoTimer()
   SPI.setDataMode(SPI_MODE0);	// CPOL=0, CPHA=0
 #ifdef __AVR__
   SPI.setClockDivider(SPI_CLOCK_DIV4); // 4MHz clock. 8MHz (DIV2 not DIV4) is possible if you have short cables. Longer cables may need DIV8/DIV16.
-#elif defined(ESP8266)
+#elif defined(ESP8266) || defined(ESP32)
   SPI.setFrequency(4000000); // ESP can run at 80mhz or 160mhz, setting frequency directly is easier, set to 4MHz.
 #else
   SPI.setClockDivider(20); // 4.2MHz on Due. Same comment as above applies (lower numbers = less divider = faster speeds.)
@@ -81,7 +83,12 @@ void BaseDMD::scanDisplay()
 
   writeSPIData(rows, rowsize);
 
+#if defined(ESP32)
+  ledcWrite(ESP32_PIN_NOE_PWM_CHANNEL, 0);
+#else
   digitalWrite(pin_noe, LOW);
+#endif
+
   digitalWrite(pin_sck, HIGH); // Latch DMD shift register output
   digitalWrite(pin_sck, LOW); // (Deliberately left as digitalWrite to ensure decent latching time)
 
@@ -96,14 +103,18 @@ void BaseDMD::scanDisplay()
   scan_row = (scan_row + 1) % 4;
 
   // Output enable pin is either fixed on, or PWMed for a variable brightness display
+#if defined(ESP32)
+  ledcWrite(ESP32_PIN_NOE_PWM_CHANNEL, brightness);
+#else
   if(brightness == 255)
     digitalWrite(pin_noe, HIGH);
   else
     analogWrite(pin_noe, brightness);
+#endif
 }
 
-#ifdef ESP8266
-// No SoftDMD for ESP8266 for now
+#if defined(ESP8266) || defined(ESP32)
+// No SoftDMD for ESP8266 or ESP32 for now
 #else
 SoftDMD::SoftDMD(byte panelsWide, byte panelsHigh)
   : BaseDMD(panelsWide, panelsHigh, 9, 6, 7, 8),
@@ -171,8 +182,10 @@ BaseDMD::BaseDMD(byte panelsWide, byte panelsHigh, byte pin_noe, byte pin_a, byt
   pin_a(pin_a),
   pin_b(pin_b),
   pin_sck(pin_sck),
-#ifdef ESP8266
-  default_pins(pin_noe == 15 && pin_a == 16 && pin_b == 12 && pin_sck == 0),
+#if defined(ESP8266)
+  default_pins(pin_noe == 0 && pin_a == 16 && pin_b == 12 && pin_sck == 15),
+#elif defined(ESP32)
+  default_pins(pin_noe == 14 && pin_a == 27 && pin_b == 26 && pin_sck == 25),
 #else
   default_pins(pin_noe == 9 && pin_a == 6 && pin_b == 7 && pin_sck == 8),
 #endif
@@ -183,8 +196,17 @@ BaseDMD::BaseDMD(byte panelsWide, byte panelsHigh, byte pin_noe, byte pin_a, byt
 
 void BaseDMD::beginNoTimer()
 {
+#if defined(ESP32)
+  pinMode(pin_noe, OUTPUT);
+  // configure LED PWM functionalitites
+  ledcSetup(ESP32_PIN_NOE_PWM_CHANNEL, ESP32_PWM_FREQ, ESP32_PWM_RES);
+
+  // attach pin_noe to pwm channel
+  ledcAttachPin(pin_noe, ESP32_PIN_NOE_PWM_CHANNEL);
+#else
   digitalWrite(pin_noe, LOW);
   pinMode(pin_noe, OUTPUT);
+#endif
 
   digitalWrite(pin_a, LOW);
   pinMode(pin_a, OUTPUT);
