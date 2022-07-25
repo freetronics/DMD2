@@ -136,7 +136,7 @@ template <class StrType> __attribute__((always_inline)) inline void _drawString(
 }
 
 // Generic stringWidth implementation for various kinds of strings
-template <class StrType> __attribute__((always_inline)) inline unsigned int _stringWidth(DMDFrame *dmd, const uint8_t *font, StrType str)
+ template <class StrType> __attribute__((always_inline)) inline unsigned int _stringWidth(DMDFrame *dmd, const uint8_t *, StrType str) 
 {
   unsigned int width = 0;
   char c;
