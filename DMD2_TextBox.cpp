@@ -52,7 +52,7 @@ size_t DMD_TextBox::write(uint8_t character) {
       cur_y += rowHeight;
       cur_x = 0;
       if(cur_y + rowHeight > height) { // Scroll
-        int delta = cur_y + rowHeight - height; // the amount that it's over by
+ // int delta = cur_y + rowHeight - height; // the amount that it's over by
       }
     } else if(pending_newline) { // No room, so just clear display
       clear();
