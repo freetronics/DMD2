@@ -27,8 +27,8 @@ DMDFrame::DMDFrame(uint16_t pixelsWide, uint16_t pixelsHigh)
   height(pixelsHigh),
   font(0)
 {
-  row_width_bytes = (byte)((pixelsWide + 7)/8); // on full panels pixelsWide is a multiple of 8, but for sub-regions may not be
-  height_in_panels = (byte)((pixelsHigh + PANEL_HEIGHT-1) / PANEL_HEIGHT);
+  row_width_bytes = (uint32_t(pixelsWide) + 7)/8; // on full panels pixelsWide is a multiple of 8, but for sub-regions may not be
+  height_in_panels = (uint32_t(pixelsHigh) + PANEL_HEIGHT-1) / PANEL_HEIGHT;
   bitmap = (uint8_t *)malloc(bitmap_bytes());
   memset((void *)bitmap, 0xFF, bitmap_bytes());
 }
@@ -82,7 +82,7 @@ void DMDFrame::setPixel(unsigned int x, unsigned int y, DMDGraphicsMode mode)
         }
     }
   //karo flip end
-  int byte_idx = pixelToBitmapIndex(x,y);
+  size_t byte_idx = pixelToBitmapIndex(x,y);
   uint8_t bit = pixelToBitmask(x);
   switch(mode) {
      case GRAPHICS_ON:
@@ -123,7 +123,7 @@ bool DMDFrame::getPixel(unsigned int x, unsigned int y)
         }
     }
   //karo flip end
-  int byte_idx = pixelToBitmapIndex(x,y);
+  size_t byte_idx = pixelToBitmapIndex(x,y);
   uint8_t bit = pixelToBitmask(x);
   bool res = !(bitmap[byte_idx] & bit);
   return res;

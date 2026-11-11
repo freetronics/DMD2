@@ -190,21 +190,21 @@ class DMDFrame
   const uint16_t height; // in pixels
  protected:
   volatile uint8_t *bitmap;
-  byte row_width_bytes; // width in bitmap, bit-per-pixel rounded up to nearest byte
-  byte height_in_panels; // in panels
+  uint16_t row_width_bytes; // width in bitmap, bit-per-pixel rounded up to nearest byte
+  uint16_t height_in_panels; // in panels
 
   uint8_t *font;
   bool boolFlipPanels = false;
 
   inline size_t bitmap_bytes() {
     // total bytes in the bitmap
-    return row_width_bytes * (height_in_panels > 1 ? height_in_panels * PANEL_HEIGHT : height);
+    return size_t(row_width_bytes) * (height_in_panels > 1 ? height_in_panels * PANEL_HEIGHT : height);
   }
   inline size_t unified_width_bytes() {
     // controller sees all panels as end-to-end, so bitmap arranges it that way
-    return row_width_bytes * height_in_panels;
+    return size_t(row_width_bytes) * height_in_panels;
   }
-  inline int pixelToBitmapIndex(unsigned int x, unsigned int y) {
+  inline size_t pixelToBitmapIndex(unsigned int x, unsigned int y) {
     // Interleave panel rows in the format consumed by the display scanner.
     // A partial last row is padded; narrow frames use their actual byte width.
     return (y % PANEL_HEIGHT) * unified_width_bytes()
