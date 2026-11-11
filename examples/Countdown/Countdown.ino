@@ -37,7 +37,7 @@ void loop() {
       dmd.clearScreen();
       delay(500);
     }
-    box.clear();
     counter = 12;
   }
+  box.clear();
 }
