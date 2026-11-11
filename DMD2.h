@@ -25,8 +25,21 @@
 #ifndef DMD2_H
 #define DMD2_H
 
+// ESP32 doesn't define byte datatype
+#ifndef byte
+#define byte uint8_t
+#endif
+
+#include "Arduino.h"
 #include "Print.h"
 #include "SPI.h"
+#include "DMD2.h"
+
+#if defined(ESP32)
+#define ESP32_PIN_NOE_PWM_CHANNEL 0
+#define ESP32_PWM_FREQ 5000
+#define ESP32_PWM_RES 8
+#endif
 
 // Dimensions of a single display
 const unsigned int PANEL_WIDTH = 32;
@@ -140,7 +153,7 @@ class DMDFrame
 
   void drawString(int x, int y, const char *bChars, DMDGraphicsMode mode=GRAPHICS_ON, const uint8_t *font = NULL);
   void drawString(int x, int y, const String &str, DMDGraphicsMode mode=GRAPHICS_ON, const uint8_t *font = NULL);
-#if defined(__AVR__) || defined(ESP8266)
+#if defined(__AVR__) || defined(ESP8266) || defined(ESP32)
   void drawString_P(int x, int y, const char *flashStr, DMDGraphicsMode mode=GRAPHICS_ON, const uint8_t *font = NULL);
   inline void drawString(int x, int y, const __FlashStringHelper *flashStr, DMDGraphicsMode mode=GRAPHICS_ON, const uint8_t *font = NULL) {
     return drawString_P(x,y,(const char*)flashStr, mode, font);
@@ -151,7 +164,7 @@ class DMDFrame
   int charWidth(const char letter, const uint8_t *font = NULL);
 
   //Find the width of a string (width of all characters plus 1 pixel "kerning" between each character)
-#if defined(__AVR__) || defined(ESP8266)
+#if defined(__AVR__) || defined(ESP8266) || defined(ESP32)
   unsigned int stringWidth_P(const char *flashStr, const uint8_t *font = NULL);
   inline unsigned int stringWidth(const __FlashStringHelper *flashStr, const uint8_t *font = NULL) {
     return stringWidth_P((const char*)flashStr, font);
@@ -261,8 +274,8 @@ protected:
   void writeSPIData(volatile uint8_t *rows[4], const int rowsize);
 };
 
-#ifdef ESP8266
-// No SoftDMD for ESP8266 for now
+#if defined(ESP8266) || defined(ESP32)
+// No SoftDMD for ESP8266 or ESP32 for now
 #else
 class SoftDMD : public BaseDMD
 {

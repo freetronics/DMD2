@@ -153,7 +153,7 @@ template <class StrType> __attribute__((always_inline)) inline void _drawString(
 }
 
 
-#if defined(__AVR__) || defined (ESP8266)
+#if defined(__AVR__) || defined (ESP8266) || defined(ESP32)
 // Small wrapper class to allow indexing of progmem strings via [] (should be inlined out of the actual implementation)
 class _FlashStringWrapper {
   const char *str;
