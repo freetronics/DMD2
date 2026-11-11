@@ -192,19 +192,17 @@ class DMDFrame
 
   inline size_t bitmap_bytes() {
     // total bytes in the bitmap
-    return row_width_bytes * height;
+    return row_width_bytes * (height_in_panels > 1 ? height_in_panels * PANEL_HEIGHT : height);
   }
   inline size_t unified_width_bytes() {
     // controller sees all panels as end-to-end, so bitmap arranges it that way
     return row_width_bytes * height_in_panels;
   }
   inline int pixelToBitmapIndex(unsigned int x, unsigned int y) {
-    // Panels seen as stretched out in a row for purposes of finding index
-    uint8_t panel = (x/PANEL_WIDTH) + ((width/PANEL_WIDTH) * (y/PANEL_HEIGHT));
-    x = (x % PANEL_WIDTH)  + (panel * PANEL_WIDTH);
-    y = y % PANEL_HEIGHT;
-    int res = x / 8 + (y * unified_width_bytes());
-    return res;
+    // Interleave panel rows in the format consumed by the display scanner.
+    // A partial last row is padded; narrow frames use their actual byte width.
+    return (y % PANEL_HEIGHT) * unified_width_bytes()
+         + (y / PANEL_HEIGHT) * row_width_bytes + x / 8;
   }
   inline uint8_t pixelToBitmask(unsigned int x) {
     int res = pgm_read_byte(DMD_Pixel_Lut + (x & 0x07));
