@@ -19,6 +19,14 @@
  If not, see <http://www.gnu.org/licenses/>.
 */
 #include "DMD2.h"
+#ifdef ESP8266
+#include <core_version.h>
+#if defined(ARDUINO_ESP8266_MAJOR) && ARDUINO_ESP8266_MAJOR >= 3
+#include <Schedule.h>
+#define DMD2_ESP8266_COOPERATIVE 1
+#endif
+#endif
+
 
 /*
   Uncomment the following line if you don't want DMD library to touch
@@ -55,11 +63,11 @@ void BaseDMD::end() {
 #else // Use timers
 
 // Forward declarations for tracking currently running DMDs
-static void register_running_dmd(BaseDMD *dmd);
+static bool register_running_dmd(BaseDMD *dmd);
 static bool unregister_running_dmd(BaseDMD *dmd);
 static void inline scan_running_dmds();
 
-#ifdef ESP8266
+#if defined(ESP8266) && !defined(DMD2_ESP8266_COOPERATIVE)
 static void ICACHE_RAM_ATTR esp8266_ISR_wrapper();
 #endif
 
@@ -143,6 +151,42 @@ void BaseDMD::end()
 
 #elif defined (ESP8266)
 
+#ifdef DMD2_ESP8266_COOPERATIVE
+// Recurrent callbacks can cancel only by returning false. Keep one callback
+// alive across a stop/start until it observes that no displays remain.
+static bool esp8266_callback_scheduled = false;
+static bool esp8266_displays_running = false;
+
+static bool esp8266_scan_callback()
+{
+  if (!esp8266_displays_running) {
+    esp8266_callback_scheduled = false;
+    return false;
+  }
+  scan_running_dmds();
+  return true;
+}
+
+void BaseDMD::begin()
+{
+  beginNoTimer();
+  if (!register_running_dmd(this))
+    return;
+  esp8266_displays_running = true;
+  if (!esp8266_callback_scheduled) {
+    esp8266_callback_scheduled = schedule_recurrent_function_us(esp8266_scan_callback, 250);
+    if (!esp8266_callback_scheduled)
+      esp8266_displays_running = unregister_running_dmd(this);
+  }
+}
+
+void BaseDMD::end()
+{
+  esp8266_displays_running = unregister_running_dmd(this);
+  clearScreen();
+  scanDisplay();
+}
+#else
 void BaseDMD::begin()
 {
   beginNoTimer();
@@ -165,6 +209,7 @@ void BaseDMD::end()
   clearScreen();
   scanDisplay();
 }
+#endif
 
 #elif defined(ESP32)
 #include <esp_timer.h>
@@ -249,12 +294,12 @@ static volatile BaseDMD **running_dmds = 0;
 static volatile int running_dmd_len = 0;
 
 // Add a running_dmd to the list (caller must have disabled interrupts)
-static void register_running_dmd(BaseDMD *dmd)
+static bool register_running_dmd(BaseDMD *dmd)
 {
   int empty = -1;
   for(int i = 0; i < running_dmd_len; i++) {
     if(running_dmds[i] == dmd)
-      return; // Already running and registered
+      return true; // Already running and registered
     if(!running_dmds[i])
       empty = i; // Found an unused slot in the array
   }
@@ -266,12 +311,13 @@ static void register_running_dmd(BaseDMD *dmd)
       // Allocation failed, bail out
 
       running_dmd_len--;
-      return;
+      return false;
     }
     empty = running_dmd_len-1;
     running_dmds = (volatile BaseDMD **)resized;
   }
   running_dmds[empty] = dmd;
+  return true;
 }
 
 // Null out a running_dmd from the list (caller must have disabled interrupts)
@@ -288,7 +334,7 @@ static bool unregister_running_dmd(BaseDMD *dmd)
 }
 
 // ESP8266 ISR Wrapper
-#ifdef ESP8266
+#if defined(ESP8266) && !defined(DMD2_ESP8266_COOPERATIVE)
 static void inline ICACHE_RAM_ATTR esp8266_ISR_wrapper()
 {
   if(((int)0x40200000)) { //Make sure flash isn't being accessed.
