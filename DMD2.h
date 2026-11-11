@@ -25,8 +25,23 @@
 #ifndef DMD2_H
 #define DMD2_H
 
+// ESP32 doesn't define byte datatype
+#ifndef byte
+#define byte uint8_t
+#endif
+
+#include "Arduino.h"
 #include "Print.h"
 #include "SPI.h"
+#include "DMD2.h"
+
+#if defined(ESP32)
+#ifndef ESP32_PIN_NOE_PWM_CHANNEL
+#define ESP32_PIN_NOE_PWM_CHANNEL 0
+#endif
+#define ESP32_PWM_FREQ 5000
+#define ESP32_PWM_RES 8
+#endif
 
 // Dimensions of a single display
 const unsigned int PANEL_WIDTH = 32;
@@ -98,7 +113,7 @@ class DMDFrame
 {
   friend class DMD_TextBox;
  public:
-  DMDFrame(byte pixelsWide, byte pixelsHigh);
+  DMDFrame(uint16_t pixelsWide, uint16_t pixelsHigh);
   DMDFrame(const DMDFrame &source);
   virtual ~DMDFrame();
 
@@ -133,6 +148,9 @@ class DMDFrame
   void drawFilledBox(unsigned int x1, unsigned int y1, unsigned int x2, unsigned int y2, DMDGraphicsMode mode=GRAPHICS_ON);
   void drawTestPattern(DMDTestPattern pattern);
 
+  //flip panels
+  void setFlipPanels(bool flPanels){ boolFlipPanels = flPanels; }
+
   // Text primitives
   void selectFont(const uint8_t* font);
   const inline uint8_t *getFont(void) { return font; }
@@ -140,7 +158,7 @@ class DMDFrame
 
   void drawString(int x, int y, const char *bChars, DMDGraphicsMode mode=GRAPHICS_ON, const uint8_t *font = NULL);
   void drawString(int x, int y, const String &str, DMDGraphicsMode mode=GRAPHICS_ON, const uint8_t *font = NULL);
-#if defined(__AVR__) || defined(ESP8266)
+#if defined(__AVR__) || defined(ESP8266) || defined(ESP32)
   void drawString_P(int x, int y, const char *flashStr, DMDGraphicsMode mode=GRAPHICS_ON, const uint8_t *font = NULL);
   inline void drawString(int x, int y, const __FlashStringHelper *flashStr, DMDGraphicsMode mode=GRAPHICS_ON, const uint8_t *font = NULL) {
     return drawString_P(x,y,(const char*)flashStr, mode, font);
@@ -151,7 +169,7 @@ class DMDFrame
   int charWidth(const char letter, const uint8_t *font = NULL);
 
   //Find the width of a string (width of all characters plus 1 pixel "kerning" between each character)
-#if defined(__AVR__) || defined(ESP8266)
+#if defined(__AVR__) || defined(ESP8266) || defined(ESP32)
   unsigned int stringWidth_P(const char *flashStr, const uint8_t *font = NULL);
   inline unsigned int stringWidth(const __FlashStringHelper *flashStr, const uint8_t *font = NULL) {
     return stringWidth_P((const char*)flashStr, font);
@@ -168,30 +186,29 @@ class DMDFrame
 
   void swapBuffers(DMDFrame &other);
 
-  const byte width; // in pixels
-  const byte height; // in pixels
+  const uint16_t width; // in pixels
+  const uint16_t height; // in pixels
  protected:
   volatile uint8_t *bitmap;
-  byte row_width_bytes; // width in bitmap, bit-per-pixel rounded up to nearest byte
-  byte height_in_panels; // in panels
+  uint16_t row_width_bytes; // width in bitmap, bit-per-pixel rounded up to nearest byte
+  uint16_t height_in_panels; // in panels
 
   uint8_t *font;
+  bool boolFlipPanels = false;
 
   inline size_t bitmap_bytes() {
     // total bytes in the bitmap
-    return row_width_bytes * height;
+    return size_t(row_width_bytes) * (height_in_panels > 1 ? height_in_panels * PANEL_HEIGHT : height);
   }
   inline size_t unified_width_bytes() {
     // controller sees all panels as end-to-end, so bitmap arranges it that way
-    return row_width_bytes * height_in_panels;
+    return size_t(row_width_bytes) * height_in_panels;
   }
-  inline int pixelToBitmapIndex(unsigned int x, unsigned int y) {
-    // Panels seen as stretched out in a row for purposes of finding index
-    uint8_t panel = (x/PANEL_WIDTH) + ((width/PANEL_WIDTH) * (y/PANEL_HEIGHT));
-    x = (x % PANEL_WIDTH)  + (panel * PANEL_WIDTH);
-    y = y % PANEL_HEIGHT;
-    int res = x / 8 + (y * unified_width_bytes());
-    return res;
+  inline size_t pixelToBitmapIndex(unsigned int x, unsigned int y) {
+    // Interleave panel rows in the format consumed by the display scanner.
+    // A partial last row is padded; narrow frames use their actual byte width.
+    return (y % PANEL_HEIGHT) * unified_width_bytes()
+         + (y / PANEL_HEIGHT) * row_width_bytes + x / 8;
   }
   inline uint8_t pixelToBitmask(unsigned int x) {
     int res = pgm_read_byte(DMD_Pixel_Lut + (x & 0x07));
@@ -223,6 +240,16 @@ public:
   */
   void begin();
   void end();
+#if defined(ESP32)
+  // Core 2 only: reserve this LEDC channel (and its paired timer) in the sketch.
+  // Configure before begin(); returns false while PWM is attached.
+  bool setPWMChannel(uint8_t channel) {
+    if (pwm_ready) return false;
+    pwm_channel = channel;
+    return true;
+  }
+  bool isRunning() const { return refresh_running; }
+#endif
 
   /* Start display, but use manual scanning */
   virtual void beginNoTimer();
@@ -239,6 +266,12 @@ protected:
   int8_t pin_other_cs; // CS pin to check before SPI behaviour, only makes sense for SPIDMD
 
   uint8_t brightness;
+#if defined(ESP32)
+  uint8_t pwm_channel = ESP32_PIN_NOE_PWM_CHANNEL;
+  bool pwm_ready = false;
+  bool refresh_running = false;
+  void releasePWM();
+#endif
 
 };
 
@@ -247,6 +280,13 @@ class SPIDMD : public BaseDMD
 public:
   /* Create a single DMD display */
   SPIDMD();
+#if defined(ESP32)
+  // A display owns live PWM/refresh resources; copy its DMDFrame instead.
+  SPIDMD(const SPIDMD &) = delete;
+  SPIDMD &operator=(const SPIDMD &) = delete;
+  ~SPIDMD() override { end(); }
+  void scanDisplay() override;
+#endif
   /* Create a DMD display using the default pinout, panelsWide x panelsHigh panels in size */
   SPIDMD(byte panelsWide, byte panelsHigh);
   /* Create a DMD display using a custom pinout for all the non-SPI pins (SPI pins set by hardware) */
@@ -261,8 +301,8 @@ protected:
   void writeSPIData(volatile uint8_t *rows[4], const int rowsize);
 };
 
-#ifdef ESP8266
-// No SoftDMD for ESP8266 for now
+#if defined(ESP8266) || defined(ESP32)
+// No SoftDMD for ESP8266 or ESP32 for now
 #else
 class SoftDMD : public BaseDMD
 {

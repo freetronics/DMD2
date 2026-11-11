@@ -18,13 +18,23 @@
  If not, see <http://www.gnu.org/licenses/>.
 */
 #include "DMD2.h"
+#if defined(ESP32)
+#include <esp_arduino_version.h>
+#include <soc/soc_caps.h>
+#include <driver/gpio.h>
+#if ESP_ARDUINO_VERSION_MAJOR < 3
+static uint32_t dmd_pwm_channels = 0;
+#endif
+#endif
 
 // Port registers are same size as a pointer (16-bit on AVR, 32-bit on ARM)
 typedef intptr_t port_reg_t;
 
 SPIDMD::SPIDMD(byte panelsWide, byte panelsHigh)
-#ifdef ESP8266
+#if defined(ESP8266)
   : BaseDMD(panelsWide, panelsHigh, 15, 16, 12, 0)
+#elif defined(ESP32)
+  : BaseDMD(panelsWide, panelsHigh, 14, 27, 26, 25)
 #else
   : BaseDMD(panelsWide, panelsHigh, 9, 6, 7, 8)
 #endif
@@ -41,31 +51,64 @@ void SPIDMD::beginNoTimer()
 {
   // Configure SPI before initialising the base DMD
   SPI.begin();
+#if !defined(ESP32)
   SPI.setBitOrder(MSBFIRST);
   SPI.setDataMode(SPI_MODE0);	// CPOL=0, CPHA=0
 #ifdef __AVR__
   SPI.setClockDivider(SPI_CLOCK_DIV4); // 4MHz clock. 8MHz (DIV2 not DIV4) is possible if you have short cables. Longer cables may need DIV8/DIV16.
-#elif defined(ESP8266)
+#elif defined(ESP8266) || defined(ESP32)
   SPI.setFrequency(4000000); // ESP can run at 80mhz or 160mhz, setting frequency directly is easier, set to 4MHz.
 #else
   SPI.setClockDivider(20); // 4.2MHz on Due. Same comment as above applies (lower numbers = less divider = faster speeds.)
 #endif
+#endif // ESP32 configures the bus in its transaction
   BaseDMD::beginNoTimer();
 }
 
 void SPIDMD::writeSPIData(volatile uint8_t *rows[4], const int rowsize)
 {
-  /* We send out interleaved data for 4 rows at a time */
+  /* We send out interleaved data for 4 rows at a time. */
+#if defined(ESP32)
+  // Arduino ESP32 SPI transactions are task-context operations. Batch bytes
+  // to avoid taking the SPI driver lock for every byte and restore our bus
+  // settings when another SPI device has used the peripheral.
+  uint8_t buffer[64];
+  for(int offset = 0; offset < rowsize;) {
+    int count = rowsize - offset;
+    if(count > 16) count = 16;
+    for(int i = 0; i < count; i++) {
+      buffer[4*i] = *(rows[3]++);
+      buffer[4*i+1] = *(rows[2]++);
+      buffer[4*i+2] = *(rows[1]++);
+      buffer[4*i+3] = *(rows[0]++);
+    }
+    SPI.writeBytes(buffer, count * 4);
+    offset += count;
+  }
+#else
   for(int i = 0; i < rowsize; i++) {
     SPI.transfer(*(rows[3]++));
     SPI.transfer(*(rows[2]++));
     SPI.transfer(*(rows[1]++));
     SPI.transfer(*(rows[0]++));
   }
+#endif
 }
+
+#if defined(ESP32)
+void SPIDMD::scanDisplay() {
+  // Keep the bus through the latch/row change, not only the byte transfer.
+  SPI.beginTransaction(SPISettings(4000000, MSBFIRST, SPI_MODE0));
+  BaseDMD::scanDisplay();
+  SPI.endTransaction();
+}
+#endif
 
 void BaseDMD::scanDisplay()
 {
+#if defined(ESP32)
+  if (!pwm_ready) return;
+#endif
   if(pin_other_cs >= 0 && digitalRead(pin_other_cs) != HIGH)
     return;
   // Rows are send out in 4 blocks of 4 (interleaved), across all panels
@@ -81,7 +124,16 @@ void BaseDMD::scanDisplay()
 
   writeSPIData(rows, rowsize);
 
+#if defined(ESP32)
+#if ESP_ARDUINO_VERSION_MAJOR >= 3
+  ledcWrite(pin_noe, 0);
+#else
+  ledcWrite(pwm_channel, 0);
+#endif
+#else
   digitalWrite(pin_noe, LOW);
+#endif
+
   digitalWrite(pin_sck, HIGH); // Latch DMD shift register output
   digitalWrite(pin_sck, LOW); // (Deliberately left as digitalWrite to ensure decent latching time)
 
@@ -96,14 +148,22 @@ void BaseDMD::scanDisplay()
   scan_row = (scan_row + 1) % 4;
 
   // Output enable pin is either fixed on, or PWMed for a variable brightness display
+#if defined(ESP32)
+#if ESP_ARDUINO_VERSION_MAJOR >= 3
+  ledcWrite(pin_noe, brightness);
+#else
+  ledcWrite(pwm_channel, brightness);
+#endif
+#else
   if(brightness == 255)
     digitalWrite(pin_noe, HIGH);
   else
     analogWrite(pin_noe, brightness);
+#endif
 }
 
-#ifdef ESP8266
-// No SoftDMD for ESP8266 for now
+#if defined(ESP8266) || defined(ESP32)
+// No SoftDMD for ESP8266 or ESP32 for now
 #else
 SoftDMD::SoftDMD(byte panelsWide, byte panelsHigh)
   : BaseDMD(panelsWide, panelsHigh, 9, 6, 7, 8),
@@ -171,8 +231,10 @@ BaseDMD::BaseDMD(byte panelsWide, byte panelsHigh, byte pin_noe, byte pin_a, byt
   pin_a(pin_a),
   pin_b(pin_b),
   pin_sck(pin_sck),
-#ifdef ESP8266
+#if defined(ESP8266)
   default_pins(pin_noe == 15 && pin_a == 16 && pin_b == 12 && pin_sck == 0),
+#elif defined(ESP32)
+  default_pins(pin_noe == 14 && pin_a == 27 && pin_b == 26 && pin_sck == 25),
 #else
   default_pins(pin_noe == 9 && pin_a == 6 && pin_b == 7 && pin_sck == 8),
 #endif
@@ -183,8 +245,32 @@ BaseDMD::BaseDMD(byte panelsWide, byte panelsHigh, byte pin_noe, byte pin_a, byt
 
 void BaseDMD::beginNoTimer()
 {
+#if defined(ESP32)
+  if (!GPIO_IS_VALID_OUTPUT_GPIO(pin_noe) || !GPIO_IS_VALID_OUTPUT_GPIO(pin_a)
+      || !GPIO_IS_VALID_OUTPUT_GPIO(pin_b) || !GPIO_IS_VALID_OUTPUT_GPIO(pin_sck))
+    return;
+  if (!pwm_ready) {
+#if ESP_ARDUINO_VERSION_MAJOR >= 3
+    pwm_ready = ledcAttach(pin_noe, ESP32_PWM_FREQ, ESP32_PWM_RES);
+#else
+#ifdef SOC_LEDC_SUPPORT_HS_MODE
+    const unsigned channels = SOC_LEDC_CHANNEL_NUM * 2;
+#else
+    const unsigned channels = SOC_LEDC_CHANNEL_NUM;
+#endif
+    if (pwm_channel >= channels || (dmd_pwm_channels & (1UL << pwm_channel)))
+      return;
+    if (!ledcSetup(pwm_channel, ESP32_PWM_FREQ, ESP32_PWM_RES)) return;
+    ledcAttachPin(pin_noe, pwm_channel);
+    dmd_pwm_channels |= 1UL << pwm_channel;
+    pwm_ready = true;
+#endif
+    if (!pwm_ready) return;
+  }
+#else
   digitalWrite(pin_noe, LOW);
   pinMode(pin_noe, OUTPUT);
+#endif
 
   digitalWrite(pin_a, LOW);
   pinMode(pin_a, OUTPUT);
@@ -198,3 +284,21 @@ void BaseDMD::beginNoTimer()
   clearScreen();
   scanDisplay();
 }
+
+#if defined(ESP32)
+void BaseDMD::releasePWM() {
+  if (!pwm_ready) return;
+#if ESP_ARDUINO_VERSION_MAJOR >= 3
+  ledcWrite(pin_noe, 0);
+  ledcDetach(pin_noe);
+#else
+  ledcWrite(pwm_channel, 0);
+  ledcDetachPin(pin_noe);
+  dmd_pwm_channels &= ~(1UL << pwm_channel);
+#endif
+  // DMD2 uses active-high enable; low blanks the display output.
+  digitalWrite(pin_noe, LOW);
+  pinMode(pin_noe, OUTPUT);
+  pwm_ready = false;
+}
+#endif

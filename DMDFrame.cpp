@@ -21,14 +21,14 @@
  If not, see <http://www.gnu.org/licenses/>.
 */
 
-DMDFrame::DMDFrame(byte pixelsWide, byte pixelsHigh)
+DMDFrame::DMDFrame(uint16_t pixelsWide, uint16_t pixelsHigh)
   :
   width(pixelsWide),
   height(pixelsHigh),
   font(0)
 {
-  row_width_bytes = (pixelsWide + 7)/8; // on full panels pixelsWide is a multiple of 8, but for sub-regions may not be
-  height_in_panels = (pixelsHigh + PANEL_HEIGHT-1) / PANEL_HEIGHT;
+  row_width_bytes = (uint32_t(pixelsWide) + 7)/8; // on full panels pixelsWide is a multiple of 8, but for sub-regions may not be
+  height_in_panels = (uint32_t(pixelsHigh) + PANEL_HEIGHT-1) / PANEL_HEIGHT;
   bitmap = (uint8_t *)malloc(bitmap_bytes());
   memset((void *)bitmap, 0xFF, bitmap_bytes());
 }
@@ -38,7 +38,8 @@ DMDFrame::DMDFrame(const DMDFrame &source) :
   height(source.height),
   row_width_bytes(source.row_width_bytes),
   height_in_panels(source.height_in_panels),
-  font(source.font)
+  font(source.font),
+  boolFlipPanels(source.boolFlipPanels)
 {
   bitmap = (uint8_t *)malloc(bitmap_bytes());
   memcpy((void *)bitmap, (void *)source.bitmap, bitmap_bytes());
@@ -69,8 +70,19 @@ void DMDFrame::setPixel(unsigned int x, unsigned int y, DMDGraphicsMode mode)
 {
   if(x >= width || y >= height)
      return;
-
-  int byte_idx = pixelToBitmapIndex(x,y);
+  //karo flip begin
+  if((height/PANEL_HEIGHT > 1) && boolFlipPanels){
+	  bool boolpar = ((height/PANEL_HEIGHT) % 2 == 0) ? true:false;
+      int delY = y/PANEL_HEIGHT;
+      int zvi = y % PANEL_HEIGHT;
+        if ((delY % 2 == 0)&& boolpar || (delY % 2 != 0)&& !boolpar ){
+          zvi = PANEL_HEIGHT-1 - zvi;
+          y = (PANEL_HEIGHT*delY)+zvi;
+          x = width-1 - x;
+        }
+    }
+  //karo flip end
+  size_t byte_idx = pixelToBitmapIndex(x,y);
   uint8_t bit = pixelToBitmask(x);
   switch(mode) {
      case GRAPHICS_ON:
@@ -99,7 +111,19 @@ bool DMDFrame::getPixel(unsigned int x, unsigned int y)
 {
   if(x >= width || y >= height)
      return false;
-  int byte_idx = pixelToBitmapIndex(x,y);
+  //karo flip begin
+  if((height/PANEL_HEIGHT > 1) && boolFlipPanels){
+	  bool boolpar = ((height/PANEL_HEIGHT) % 2 == 0) ? true:false;
+      int delY = y/PANEL_HEIGHT;
+      int zvi = y % PANEL_HEIGHT;
+        if ((delY % 2 == 0)&& boolpar || (delY % 2 != 0)&& !boolpar ){
+          zvi = PANEL_HEIGHT-1 - zvi;
+          y = (PANEL_HEIGHT*delY)+zvi;
+          x = width-1 - x;
+        }
+    }
+  //karo flip end
+  size_t byte_idx = pixelToBitmapIndex(x,y);
   uint8_t bit = pixelToBitmask(x);
   bool res = !(bitmap[byte_idx] & bit);
   return res;
@@ -238,7 +262,7 @@ void DMDFrame::scrollY(int scrollBy) {
   }
   else if(scrollBy > 0) { // Scroll down
     movePixels(0, 0, 0, scrollBy, width, height - scrollBy);
-    drawFilledBox(0, 0, width, scrollBy, GRAPHICS_OFF);
+    drawFilledBox(0, 0, width-1, scrollBy-1, GRAPHICS_OFF);
   }
 }
 
@@ -252,9 +276,9 @@ void DMDFrame::scrollX(int scrollBy) {
     movePixels(-scrollBy, 0, 0, 0, width + scrollBy, height);
     drawFilledBox(width+scrollBy, 0, width, height, GRAPHICS_OFF);
   }
-  else { // Scroll right
+  else if(scrollBy > 0) { // Scroll right
     movePixels(0, 0, scrollBy, 0, width - scrollBy, height);
-    drawFilledBox(0, 0, scrollBy, height, GRAPHICS_OFF);
+    drawFilledBox(0, 0, scrollBy-1, height-1, GRAPHICS_OFF);
   }
 }
 
@@ -267,7 +291,7 @@ void DMDFrame::marqueeScrollX(int scrollBy) {
     DMDFrame frame = subFrame(0, 0, -scrollBy, height); // save leftmost
     movePixels(-scrollBy, 0, 0, 0, width + scrollBy, height); // move
     copyFrame(frame, width+scrollBy, 0); // drop back at right edge
-  } else { // Scroll right
+  } else if(scrollBy > 0) { // Scroll right
     DMDFrame frame = subFrame(width-scrollBy, 0, scrollBy, height); // save rightmost
     movePixels(0, 0, scrollBy, 0, width - scrollBy, height); // move
     copyFrame(frame, 0, 0); // drop back at left edge
@@ -293,7 +317,7 @@ DMDFrame DMDFrame::subFrame(unsigned int left, unsigned int top, unsigned int wi
 {
   DMDFrame result(width, height);
 
-  if((left % 8) == 0 && (width % 8) == 0) {
+  if(!boolFlipPanels && (left % 8) == 0 && (width % 8) == 0) {
     // Copying from/to byte boundaries, can do simple/efficient copies
     for(unsigned int to_y = 0; to_y < height; to_y++) {
       unsigned int from_y = top + to_y;
@@ -319,7 +343,7 @@ DMDFrame DMDFrame::subFrame(unsigned int left, unsigned int top, unsigned int wi
 
 void DMDFrame::copyFrame(DMDFrame &from, unsigned int left, unsigned int top)
 {
-  if((left % 8) == 0 && (from.width % 8) == 0) {
+  if(!boolFlipPanels && !from.boolFlipPanels && (left % 8) == 0 && (from.width % 8) == 0) {
     // Copying rows on byte boundaries, can do simple/efficient copies
     unsigned int to_bottom = top + from.height;
     if(to_bottom > this->height)
