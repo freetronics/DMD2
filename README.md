@@ -83,3 +83,34 @@ All displays use 5 kHz, 8-bit PWM. External code must not reconfigure DMD-owned 
 You'll notice the examples directory contains some files named `Makefile`. You can ignore these if you are using the Arduino IDE.
 
 However, if you want to use other development tools with the DMD library, the Makefiles work with with the [arduino-mk](http://www.mjoldfield.com/atelier/2009/02/arduino-cli.html) package, version 1.3.1. They may need updating to work with newer versions.
+
+# Maintenance validation
+
+The 2026 maintenance integration incorporates #41, #43/#44, #56/#57 and #58
+with corrective patches. Original contributor commits are preserved.
+
+Framebuffer dimensions and byte strides now use 16-bit storage. This removes
+the 255-pixel dimension limit; it does not guarantee that any requested frame
+fits your board's RAM. Large frames and temporary frames used by scrolling
+must fit available memory and the target's address space. Drawing coordinates
+remain limited by the platform's integer range. Eight-panel physical output
+has not been tested.
+
+Local ESP8266 panel tests covered frame indexing, scrolling and flipped rows.
+ESP32 tests on the original ESP32 module with Arduino 2.0.17 and 3.3.12 covered
+refresh, Wi-Fi traffic, brightness, repeated stop/start, destruction, PWM
+ownership and a competing SPI task. ESP32 logical frame tests also covered the
+flipping corrections; physical multi-row ESP32 output and other ESP32 variants
+remain unverified. Uno and the original SoftDMD Countdown example compile;
+there is no new AVR hardware validation or reproduction of every issue #40
+variation. The Countdown change clears its textbox between successive values.
+
+The ESP8266 core 3 backend services display refresh cooperatively rather than
+calling flash-resident drawing/SPI code inside an interrupt. Its requested
+250-us interval is retained from panel tests: it is a scheduling request, not
+a guarantee of a 1-kHz full-frame rate. Wi-Fi traffic can introduce visible
+shimmer. AVR and Due refresh backends retain their existing timing.
+
+See [tests/README.md](tests/README.md) for repeatable build and framebuffer
+regression checks. No RTC, light-sensor or clock-application compatibility is
+implied by the library tests.
