@@ -44,6 +44,40 @@ Thanks to @h4rm0n1c there is support for DMD2 on ESP8266 using the Arduino envir
 
 Freetronics is unable to guarantee support for DMD2 on ESP8266, but we will try and help if we can.
 
+# ESP32 support
+
+`SPIDMD` refresh runs in a worker task, with a timer notification every 2083 µs
+(about 120 complete four-row frames/s when scheduling and SPI are available).
+Missed notifications are coalesced rather than replayed. SPI runs at 4 MHz;
+the transaction covers shifting, latching and row selection. Other SPI users
+must use transactions too. A DMD has no chip-select input: other devices' bus
+traffic still reaches its shift registers, and this is not electrical isolation.
+`setOtherCS()` can suppress a scan while another device's CS is active.
+
+Initialize custom SPI pins before `begin()`, for example
+`SPI.begin(14, -1, 23, -1)`. The display constructor takes the non-SPI pins
+in OE, A, B, latch order. Choose GPIOs appropriate for your module; flash,
+PSRAM and input-only pins are not interchangeable with general output pins.
+SoftDMD is not implemented for ESP32.
+
+On ESP32, repeated `begin()` leaves an already-running display intact.
+`isRunning()` reports whether automatic refresh started. PWM or refresh
+resource failure leaves it false. `end()` waits for any worker scan, removes
+the display and detaches its PWM output; repeated calls are safe. A stock
+SPIDMD also stops on destruction. ESP32 SPIDMD instances cannot be copied
+or assigned; copy a `DMDFrame` snapshot instead. Stop custom derived displays with `end()`
+before destroying their own scan state. Keep framebuffer drawing and lifecycle
+operations in one application task; this is not a general thread-safe drawing API.
+The shared worker and mutex are retained for reuse after the last display ends.
+
+Arduino-ESP32 core 3 allocates PWM channels through its LEDC API. Core 2 uses
+channel 0 by default; call `setPWMChannel(channel)` before `begin()` to choose
+a different channel for each display. Duplicate DMD2 channel claims are rejected.
+Reserve that channel and its paired LEDC timer against unrelated libraries:
+core 2 has no shared Arduino channel allocator for DMD2 to consult. The setter
+has no channel-selection effect on core 3 and refuses changes while PWM is attached.
+All displays use 5 kHz, 8-bit PWM. External code must not reconfigure DMD-owned pins.
+
 # About the Makefiles
 
 You'll notice the examples directory contains some files named `Makefile`. You can ignore these if you are using the Arduino IDE.

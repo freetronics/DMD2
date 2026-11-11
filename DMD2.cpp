@@ -20,6 +20,11 @@
 #include "DMD2.h"
 #if defined(ESP32)
 #include <esp_arduino_version.h>
+#include <soc/soc_caps.h>
+#include <driver/gpio.h>
+#if ESP_ARDUINO_VERSION_MAJOR < 3
+static uint32_t dmd_pwm_channels = 0;
+#endif
 #endif
 
 // Port registers are same size as a pointer (16-bit on AVR, 32-bit on ARM)
@@ -68,7 +73,6 @@ void SPIDMD::writeSPIData(volatile uint8_t *rows[4], const int rowsize)
   // to avoid taking the SPI driver lock for every byte and restore our bus
   // settings when another SPI device has used the peripheral.
   uint8_t buffer[64];
-  SPI.beginTransaction(SPISettings(4000000, MSBFIRST, SPI_MODE0));
   for(int offset = 0; offset < rowsize;) {
     int count = rowsize - offset;
     if(count > 16) count = 16;
@@ -81,7 +85,6 @@ void SPIDMD::writeSPIData(volatile uint8_t *rows[4], const int rowsize)
     SPI.writeBytes(buffer, count * 4);
     offset += count;
   }
-  SPI.endTransaction();
 #else
   for(int i = 0; i < rowsize; i++) {
     SPI.transfer(*(rows[3]++));
@@ -92,8 +95,20 @@ void SPIDMD::writeSPIData(volatile uint8_t *rows[4], const int rowsize)
 #endif
 }
 
+#if defined(ESP32)
+void SPIDMD::scanDisplay() {
+  // Keep the bus through the latch/row change, not only the byte transfer.
+  SPI.beginTransaction(SPISettings(4000000, MSBFIRST, SPI_MODE0));
+  BaseDMD::scanDisplay();
+  SPI.endTransaction();
+}
+#endif
+
 void BaseDMD::scanDisplay()
 {
+#if defined(ESP32)
+  if (!pwm_ready) return;
+#endif
   if(pin_other_cs >= 0 && digitalRead(pin_other_cs) != HIGH)
     return;
   // Rows are send out in 4 blocks of 4 (interleaved), across all panels
@@ -113,7 +128,7 @@ void BaseDMD::scanDisplay()
 #if ESP_ARDUINO_VERSION_MAJOR >= 3
   ledcWrite(pin_noe, 0);
 #else
-  ledcWrite(ESP32_PIN_NOE_PWM_CHANNEL, 0);
+  ledcWrite(pwm_channel, 0);
 #endif
 #else
   digitalWrite(pin_noe, LOW);
@@ -137,7 +152,7 @@ void BaseDMD::scanDisplay()
 #if ESP_ARDUINO_VERSION_MAJOR >= 3
   ledcWrite(pin_noe, brightness);
 #else
-  ledcWrite(ESP32_PIN_NOE_PWM_CHANNEL, brightness);
+  ledcWrite(pwm_channel, brightness);
 #endif
 #else
   if(brightness == 255)
@@ -231,13 +246,27 @@ BaseDMD::BaseDMD(byte panelsWide, byte panelsHigh, byte pin_noe, byte pin_a, byt
 void BaseDMD::beginNoTimer()
 {
 #if defined(ESP32)
-  pinMode(pin_noe, OUTPUT);
+  if (!GPIO_IS_VALID_OUTPUT_GPIO(pin_noe) || !GPIO_IS_VALID_OUTPUT_GPIO(pin_a)
+      || !GPIO_IS_VALID_OUTPUT_GPIO(pin_b) || !GPIO_IS_VALID_OUTPUT_GPIO(pin_sck))
+    return;
+  if (!pwm_ready) {
 #if ESP_ARDUINO_VERSION_MAJOR >= 3
-  ledcAttach(pin_noe, ESP32_PWM_FREQ, ESP32_PWM_RES);
+    pwm_ready = ledcAttach(pin_noe, ESP32_PWM_FREQ, ESP32_PWM_RES);
 #else
-  ledcSetup(ESP32_PIN_NOE_PWM_CHANNEL, ESP32_PWM_FREQ, ESP32_PWM_RES);
-  ledcAttachPin(pin_noe, ESP32_PIN_NOE_PWM_CHANNEL);
+#ifdef SOC_LEDC_SUPPORT_HS_MODE
+    const unsigned channels = SOC_LEDC_CHANNEL_NUM * 2;
+#else
+    const unsigned channels = SOC_LEDC_CHANNEL_NUM;
 #endif
+    if (pwm_channel >= channels || (dmd_pwm_channels & (1UL << pwm_channel)))
+      return;
+    if (!ledcSetup(pwm_channel, ESP32_PWM_FREQ, ESP32_PWM_RES)) return;
+    ledcAttachPin(pin_noe, pwm_channel);
+    dmd_pwm_channels |= 1UL << pwm_channel;
+    pwm_ready = true;
+#endif
+    if (!pwm_ready) return;
+  }
 #else
   digitalWrite(pin_noe, LOW);
   pinMode(pin_noe, OUTPUT);
@@ -255,3 +284,21 @@ void BaseDMD::beginNoTimer()
   clearScreen();
   scanDisplay();
 }
+
+#if defined(ESP32)
+void BaseDMD::releasePWM() {
+  if (!pwm_ready) return;
+#if ESP_ARDUINO_VERSION_MAJOR >= 3
+  ledcWrite(pin_noe, 0);
+  ledcDetach(pin_noe);
+#else
+  ledcWrite(pwm_channel, 0);
+  ledcDetachPin(pin_noe);
+  dmd_pwm_channels &= ~(1UL << pwm_channel);
+#endif
+  // DMD2 uses active-high enable; low blanks the display output.
+  digitalWrite(pin_noe, LOW);
+  pinMode(pin_noe, OUTPUT);
+  pwm_ready = false;
+}
+#endif

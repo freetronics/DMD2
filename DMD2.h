@@ -36,7 +36,9 @@
 #include "DMD2.h"
 
 #if defined(ESP32)
+#ifndef ESP32_PIN_NOE_PWM_CHANNEL
 #define ESP32_PIN_NOE_PWM_CHANNEL 0
+#endif
 #define ESP32_PWM_FREQ 5000
 #define ESP32_PWM_RES 8
 #endif
@@ -238,6 +240,16 @@ public:
   */
   void begin();
   void end();
+#if defined(ESP32)
+  // Core 2 only: reserve this LEDC channel (and its paired timer) in the sketch.
+  // Configure before begin(); returns false while PWM is attached.
+  bool setPWMChannel(uint8_t channel) {
+    if (pwm_ready) return false;
+    pwm_channel = channel;
+    return true;
+  }
+  bool isRunning() const { return refresh_running; }
+#endif
 
   /* Start display, but use manual scanning */
   virtual void beginNoTimer();
@@ -254,6 +266,12 @@ protected:
   int8_t pin_other_cs; // CS pin to check before SPI behaviour, only makes sense for SPIDMD
 
   uint8_t brightness;
+#if defined(ESP32)
+  uint8_t pwm_channel = ESP32_PIN_NOE_PWM_CHANNEL;
+  bool pwm_ready = false;
+  bool refresh_running = false;
+  void releasePWM();
+#endif
 
 };
 
@@ -262,6 +280,13 @@ class SPIDMD : public BaseDMD
 public:
   /* Create a single DMD display */
   SPIDMD();
+#if defined(ESP32)
+  // A display owns live PWM/refresh resources; copy its DMDFrame instead.
+  SPIDMD(const SPIDMD &) = delete;
+  SPIDMD &operator=(const SPIDMD &) = delete;
+  ~SPIDMD() override { end(); }
+  void scanDisplay() override;
+#endif
   /* Create a DMD display using the default pinout, panelsWide x panelsHigh panels in size */
   SPIDMD(byte panelsWide, byte panelsHigh);
   /* Create a DMD display using a custom pinout for all the non-SPI pins (SPI pins set by hardware) */

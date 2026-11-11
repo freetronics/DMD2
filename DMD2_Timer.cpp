@@ -58,6 +58,10 @@ void BaseDMD::begin() {
 }
 
 void BaseDMD::end() {
+#if defined(ESP32)
+  releasePWM();
+  clearScreen();
+#endif
 }
 
 #else // Use timers
@@ -240,12 +244,21 @@ void BaseDMD::begin() {
   SemaphoreHandle_t gate = refresh_mutex();
   if (!gate) return;
   xSemaphoreTake(gate, portMAX_DELAY);
+  if (refresh_running) {
+    xSemaphoreGive(gate);
+    return;
+  }
   beginNoTimer();
-  register_running_dmd(this);
+  if (!pwm_ready || !register_running_dmd(this)) {
+    releasePWM();
+    xSemaphoreGive(gate);
+    return;
+  }
   if (!refresh_timer) {
     if (!refresh_task && xTaskCreate(refresh_worker, "dmd_refresh", 4096,
                                      nullptr, 2, &refresh_task) != pdPASS) {
       unregister_running_dmd(this);
+      releasePWM();
       xSemaphoreGive(gate);
       return;
     }
@@ -259,8 +272,12 @@ void BaseDMD::begin() {
         refresh_timer = nullptr;
       }
     }
-    if (!refresh_timer) unregister_running_dmd(this);
+    if (!refresh_timer) {
+      unregister_running_dmd(this);
+      releasePWM();
+    }
   }
+  refresh_running = refresh_timer != nullptr;
   xSemaphoreGive(gate);
 }
 void BaseDMD::end() {
@@ -268,13 +285,16 @@ void BaseDMD::end() {
   if (!gate) return;
   xSemaphoreTake(gate, portMAX_DELAY);
   bool still_running = unregister_running_dmd(this);
+  refresh_running = false;
   if (!still_running && refresh_timer) {
     esp_timer_stop(refresh_timer);
     esp_timer_delete(refresh_timer);
     refresh_timer = nullptr;
   }
+  // No SPI/virtual scan here: safe during SPIDMD destruction, and no extra
+  // scan on repeated end(). The mutex waits for any in-flight worker scan.
+  releasePWM();
   clearScreen();
-  scanDisplay();
   xSemaphoreGive(gate);
 }
 
