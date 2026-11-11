@@ -40,43 +40,40 @@ Feel free to ask [questions on the forum](http://forum.freetronics.com/viewforum
 
 # ESP8266 Support
 
-Thanks to @h4rm0n1c there is support for DMD2 on ESP8266 using the Arduino environment. See [this comment](https://github.com/freetronics/DMD2/pull/7#issue-97282971) for an explanation of using DMD2 on ESP8266.
+Thanks to @h4rm0n1c there is support for DMD2 on ESP8266 using the Arduino environment. See [this comment](https://github.com/freetronics/DMD2/pull/7#issue-97282971) for the pin connections.
 
-Freetronics is unable to guarantee support for DMD2 on ESP8266, but we will try and help if we can.
+With ESP8266 Arduino core 3, display refresh runs outside the interrupt handler so it can work alongside Wi-Fi. Network traffic can still cause visible shimmer. Older cores use the original timer interrupt code.
 
-# ESP32 support
+# ESP32 Support
 
-`SPIDMD` refresh runs in a worker task, with a timer notification every 2083 µs
-(about 120 complete four-row frames/s when scheduling and SPI are available).
-Missed notifications are coalesced rather than replayed. SPI runs at 4 MHz;
-the transaction covers shifting, latching and row selection. Other SPI users
-must use transactions too. A DMD has no chip-select input: other devices' bus
-traffic still reaches its shift registers, and this is not electrical isolation.
-`setOtherCS()` can suppress a scan while another device's CS is active.
+DMD2 supports `SPIDMD` on ESP32 with Arduino-ESP32 cores 2 and 3. SoftDMD is not supported on ESP32.
 
-Initialize custom SPI pins before `begin()`, for example
-`SPI.begin(14, -1, 23, -1)`. The display constructor takes the non-SPI pins
-in OE, A, B, latch order. Choose GPIOs appropriate for your module; flash,
-PSRAM and input-only pins are not interchangeable with general output pins.
-SoftDMD is not implemented for ESP32.
+Set up SPI before starting the display if you use custom pins. For example, these connections were used on the ESP32/WROVER test board:
 
-On ESP32, repeated `begin()` leaves an already-running display intact.
-`isRunning()` reports whether automatic refresh started. PWM or refresh
-resource failure leaves it false. `end()` waits for any worker scan, removes
-the display and detaches its PWM output; repeated calls are safe. A stock
-SPIDMD also stops on destruction. ESP32 SPIDMD instances cannot be copied
-or assigned; copy a `DMDFrame` snapshot instead. Stop custom derived displays with `end()`
-before destroying their own scan state. Keep framebuffer drawing and lifecycle
-operations in one application task; this is not a general thread-safe drawing API.
-The shared worker and mutex are retained for reuse after the last display ends.
+```cpp
+#include <SPI.h>
+#include <DMD2.h>
 
-Arduino-ESP32 core 3 allocates PWM channels through its LEDC API. Core 2 uses
-channel 0 by default; call `setPWMChannel(channel)` before `begin()` to choose
-a different channel for each display. Duplicate DMD2 channel claims are rejected.
-Reserve that channel and its paired LEDC timer against unrelated libraries:
-core 2 has no shared Arduino channel allocator for DMD2 to consult. The setter
-has no channel-selection effect on core 3 and refuses changes while PWM is attached.
-All displays use 5 kHz, 8-bit PWM. External code must not reconfigure DMD-owned pins.
+// One panel; output enable, row A, row B, latch
+SPIDMD dmd(1, 1, 25, 26, 27, 33);
+
+void setup() {
+  // Clock, MISO (unused), MOSI, SS (unused)
+  SPI.begin(14, -1, 23, -1);
+  dmd.begin();
+}
+
+void loop() {
+}
+```
+
+Choose pins to suit your board. GPIO16 and GPIO17 are used by PSRAM on WROVER modules. See [ESP32 notes](docs/ESP32.md) for shared SPI, PWM and start/stop behaviour.
+
+# Panel Layout
+
+Use `dmd.setFlipPanels(true)` if alternate rows of panels are mounted upside down to simplify the ribbon cable connections. This is optional; existing layouts are unchanged.
+
+Frames wider than 255 pixels are supported. Make sure the framebuffer, and any temporary frames used when scrolling, fit in your board's RAM.
 
 # About the Makefiles
 
@@ -84,33 +81,12 @@ You'll notice the examples directory contains some files named `Makefile`. You c
 
 However, if you want to use other development tools with the DMD library, the Makefiles work with with the [arduino-mk](http://www.mjoldfield.com/atelier/2009/02/arduino-cli.html) package, version 1.3.1. They may need updating to work with newer versions.
 
-# Maintenance validation
+# Testing
 
-The 2026 maintenance integration incorporates #41, #43/#44, #56/#57 and #58
-with corrective patches. Original contributor commits are preserved.
+Version 0.0.4 was tested on real ESP8266 and ESP32/WROVER hardware with P10 panels.
 
-Framebuffer dimensions and byte strides now use 16-bit storage. This removes
-the 255-pixel dimension limit; it does not guarantee that any requested frame
-fits your board's RAM. Large frames and temporary frames used by scrolling
-must fit available memory and the target's address space. Drawing coordinates
-remain limited by the platform's integer range. Eight-panel physical output
-has not been tested.
+* ESP8266 tests used two panels and covered drawing, scrolling, flipped rows and Wi-Fi traffic.
+* ESP32 tests used Arduino-ESP32 2.0.17 and 3.3.12 and covered refresh, brightness, Wi-Fi traffic, repeated start/stop and shared SPI use.
+* Automated checks cover framebuffer operations and builds for Uno, Countdown, ESP8266 and both ESP32 core versions. See [tests](tests/README.md) to run them.
 
-Local ESP8266 panel tests covered frame indexing, scrolling and flipped rows.
-ESP32 tests on the original ESP32 module with Arduino 2.0.17 and 3.3.12 covered
-refresh, Wi-Fi traffic, brightness, repeated stop/start, destruction, PWM
-ownership and a competing SPI task. ESP32 logical frame tests also covered the
-flipping corrections; physical multi-row ESP32 output and other ESP32 variants
-remain unverified. Uno and the original SoftDMD Countdown example compile;
-there is no new AVR hardware validation or reproduction of every issue #40
-variation. The Countdown change clears its textbox between successive values.
-
-The ESP8266 core 3 backend services display refresh cooperatively rather than
-calling flash-resident drawing/SPI code inside an interrupt. Its requested
-250-us interval is retained from panel tests: it is a scheduling request, not
-a guarantee of a 1-kHz full-frame rate. Wi-Fi traffic can introduce visible
-shimmer. AVR and Due refresh backends retain their existing timing.
-
-See [tests/README.md](tests/README.md) for repeatable build and framebuffer
-regression checks. No RTC, light-sensor or clock-application compatibility is
-implied by the library tests.
+We haven't tested a physical chain of eight or more panels, a complete multirow wall, or other ESP32 variants. AVR and Due haven't had new hardware tests. The remaining ESP8266 OTA, MQTT and long-running watchdog reports are still open.
