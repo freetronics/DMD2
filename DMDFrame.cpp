@@ -238,7 +238,7 @@ void DMDFrame::scrollY(int scrollBy) {
   }
   else if(scrollBy > 0) { // Scroll down
     movePixels(0, 0, 0, scrollBy, width, height - scrollBy);
-    drawFilledBox(0, 0, width, scrollBy, GRAPHICS_OFF);
+    drawFilledBox(0, 0, width-1, scrollBy-1, GRAPHICS_OFF);
   }
 }
 
@@ -252,9 +252,9 @@ void DMDFrame::scrollX(int scrollBy) {
     movePixels(-scrollBy, 0, 0, 0, width + scrollBy, height);
     drawFilledBox(width+scrollBy, 0, width, height, GRAPHICS_OFF);
   }
-  else { // Scroll right
+  else if(scrollBy > 0) { // Scroll right
     movePixels(0, 0, scrollBy, 0, width - scrollBy, height);
-    drawFilledBox(0, 0, scrollBy, height, GRAPHICS_OFF);
+    drawFilledBox(0, 0, scrollBy-1, height-1, GRAPHICS_OFF);
   }
 }
 
@@ -267,7 +267,7 @@ void DMDFrame::marqueeScrollX(int scrollBy) {
     DMDFrame frame = subFrame(0, 0, -scrollBy, height); // save leftmost
     movePixels(-scrollBy, 0, 0, 0, width + scrollBy, height); // move
     copyFrame(frame, width+scrollBy, 0); // drop back at right edge
-  } else { // Scroll right
+  } else if(scrollBy > 0) { // Scroll right
     DMDFrame frame = subFrame(width-scrollBy, 0, scrollBy, height); // save rightmost
     movePixels(0, 0, scrollBy, 0, width - scrollBy, height); // move
     copyFrame(frame, 0, 0); // drop back at left edge
