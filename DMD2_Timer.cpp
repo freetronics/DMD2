@@ -167,47 +167,70 @@ void BaseDMD::end()
 }
 
 #elif defined(ESP32)
-hw_timer_t *timer = NULL;
-portMUX_TYPE timerMux = portMUX_INITIALIZER_UNLOCKED;
+#include <esp_timer.h>
+#include <freertos/semphr.h>
 
-void IRAM_ATTR esp32_ISR_wrapper(){
-  // claim interrupt handling
-  portENTER_CRITICAL_ISR(&timerMux);
-
-  scan_running_dmds();
-
-  // end interrupt handling
-  portEXIT_CRITICAL_ISR(&timerMux);
+// The shared esp_timer task only wakes our worker; it never performs SPI or
+// waits for the refresh mutex. Missed notifications are coalesced.
+static esp_timer_handle_t refresh_timer = nullptr;
+static TaskHandle_t refresh_task = nullptr;
+static SemaphoreHandle_t refresh_mutex() {
+  static SemaphoreHandle_t gate = xSemaphoreCreateMutex();
+  return gate;
 }
-
-void BaseDMD::begin()
-{
+static void refresh_worker(void *) {
+  for (;;) {
+    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    SemaphoreHandle_t gate = refresh_mutex();
+    if (gate && xSemaphoreTake(gate, portMAX_DELAY) == pdTRUE) {
+      scan_running_dmds();
+      xSemaphoreGive(gate);
+    }
+  }
+}
+static void refresh_callback(void *) {
+  if (refresh_task) xTaskNotifyGive(refresh_task);
+}
+void BaseDMD::begin() {
+  SemaphoreHandle_t gate = refresh_mutex();
+  if (!gate) return;
+  xSemaphoreTake(gate, portMAX_DELAY);
   beginNoTimer();
-
-  timer = timerBegin(ESP32_TIMER0, ESP32_TIMER0_PRESCALER, true);
-
   register_running_dmd(this);
-
-  timerAttachInterrupt(timer, &esp32_ISR_wrapper, true);
-  timerAlarmWrite(timer, ESP32_TIMER0_RELOAD_ON, true);
-
-  // safety net
-  yield();
-  timerAlarmEnable(timer);
+  if (!refresh_timer) {
+    if (!refresh_task && xTaskCreate(refresh_worker, "dmd_refresh", 4096,
+                                     nullptr, 2, &refresh_task) != pdPASS) {
+      unregister_running_dmd(this);
+      xSemaphoreGive(gate);
+      return;
+    }
+    esp_timer_create_args_t args = {};
+    args.callback = refresh_callback;
+    args.dispatch_method = ESP_TIMER_TASK;
+    args.name = "dmd_refresh";
+    if (esp_timer_create(&args, &refresh_timer) == ESP_OK) {
+      if (esp_timer_start_periodic(refresh_timer, 2083) != ESP_OK) {
+        esp_timer_delete(refresh_timer);
+        refresh_timer = nullptr;
+      }
+    }
+    if (!refresh_timer) unregister_running_dmd(this);
+  }
+  xSemaphoreGive(gate);
 }
-
-void BaseDMD::end()
-{
+void BaseDMD::end() {
+  SemaphoreHandle_t gate = refresh_mutex();
+  if (!gate) return;
+  xSemaphoreTake(gate, portMAX_DELAY);
   bool still_running = unregister_running_dmd(this);
-  if(!still_running)
-  {
-    timerAlarmDisable(timer);
-    timerDetachInterrupt(timer);
-    timerEnd(timer);
-    timer = NULL;
+  if (!still_running && refresh_timer) {
+    esp_timer_stop(refresh_timer);
+    esp_timer_delete(refresh_timer);
+    refresh_timer = nullptr;
   }
   clearScreen();
   scanDisplay();
+  xSemaphoreGive(gate);
 }
 
 #endif // ifdef __AVR__

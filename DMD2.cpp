@@ -18,13 +18,16 @@
  If not, see <http://www.gnu.org/licenses/>.
 */
 #include "DMD2.h"
+#if defined(ESP32)
+#include <esp_arduino_version.h>
+#endif
 
 // Port registers are same size as a pointer (16-bit on AVR, 32-bit on ARM)
 typedef intptr_t port_reg_t;
 
 SPIDMD::SPIDMD(byte panelsWide, byte panelsHigh)
 #if defined(ESP8266)
-  : BaseDMD(panelsWide, panelsHigh, 0, 16, 12, 15)
+  : BaseDMD(panelsWide, panelsHigh, 15, 16, 12, 0)
 #elif defined(ESP32)
   : BaseDMD(panelsWide, panelsHigh, 14, 27, 26, 25)
 #else
@@ -43,6 +46,7 @@ void SPIDMD::beginNoTimer()
 {
   // Configure SPI before initialising the base DMD
   SPI.begin();
+#if !defined(ESP32)
   SPI.setBitOrder(MSBFIRST);
   SPI.setDataMode(SPI_MODE0);	// CPOL=0, CPHA=0
 #ifdef __AVR__
@@ -52,18 +56,40 @@ void SPIDMD::beginNoTimer()
 #else
   SPI.setClockDivider(20); // 4.2MHz on Due. Same comment as above applies (lower numbers = less divider = faster speeds.)
 #endif
+#endif // ESP32 configures the bus in its transaction
   BaseDMD::beginNoTimer();
 }
 
 void SPIDMD::writeSPIData(volatile uint8_t *rows[4], const int rowsize)
 {
-  /* We send out interleaved data for 4 rows at a time */
+  /* We send out interleaved data for 4 rows at a time. */
+#if defined(ESP32)
+  // Arduino ESP32 SPI transactions are task-context operations. Batch bytes
+  // to avoid taking the SPI driver lock for every byte and restore our bus
+  // settings when another SPI device has used the peripheral.
+  uint8_t buffer[64];
+  SPI.beginTransaction(SPISettings(4000000, MSBFIRST, SPI_MODE0));
+  for(int offset = 0; offset < rowsize;) {
+    int count = rowsize - offset;
+    if(count > 16) count = 16;
+    for(int i = 0; i < count; i++) {
+      buffer[4*i] = *(rows[3]++);
+      buffer[4*i+1] = *(rows[2]++);
+      buffer[4*i+2] = *(rows[1]++);
+      buffer[4*i+3] = *(rows[0]++);
+    }
+    SPI.writeBytes(buffer, count * 4);
+    offset += count;
+  }
+  SPI.endTransaction();
+#else
   for(int i = 0; i < rowsize; i++) {
     SPI.transfer(*(rows[3]++));
     SPI.transfer(*(rows[2]++));
     SPI.transfer(*(rows[1]++));
     SPI.transfer(*(rows[0]++));
   }
+#endif
 }
 
 void BaseDMD::scanDisplay()
@@ -84,7 +110,11 @@ void BaseDMD::scanDisplay()
   writeSPIData(rows, rowsize);
 
 #if defined(ESP32)
+#if ESP_ARDUINO_VERSION_MAJOR >= 3
+  ledcWrite(pin_noe, 0);
+#else
   ledcWrite(ESP32_PIN_NOE_PWM_CHANNEL, 0);
+#endif
 #else
   digitalWrite(pin_noe, LOW);
 #endif
@@ -104,7 +134,11 @@ void BaseDMD::scanDisplay()
 
   // Output enable pin is either fixed on, or PWMed for a variable brightness display
 #if defined(ESP32)
+#if ESP_ARDUINO_VERSION_MAJOR >= 3
+  ledcWrite(pin_noe, brightness);
+#else
   ledcWrite(ESP32_PIN_NOE_PWM_CHANNEL, brightness);
+#endif
 #else
   if(brightness == 255)
     digitalWrite(pin_noe, HIGH);
@@ -183,7 +217,7 @@ BaseDMD::BaseDMD(byte panelsWide, byte panelsHigh, byte pin_noe, byte pin_a, byt
   pin_b(pin_b),
   pin_sck(pin_sck),
 #if defined(ESP8266)
-  default_pins(pin_noe == 0 && pin_a == 16 && pin_b == 12 && pin_sck == 15),
+  default_pins(pin_noe == 15 && pin_a == 16 && pin_b == 12 && pin_sck == 0),
 #elif defined(ESP32)
   default_pins(pin_noe == 14 && pin_a == 27 && pin_b == 26 && pin_sck == 25),
 #else
@@ -198,11 +232,12 @@ void BaseDMD::beginNoTimer()
 {
 #if defined(ESP32)
   pinMode(pin_noe, OUTPUT);
-  // configure LED PWM functionalitites
+#if ESP_ARDUINO_VERSION_MAJOR >= 3
+  ledcAttach(pin_noe, ESP32_PWM_FREQ, ESP32_PWM_RES);
+#else
   ledcSetup(ESP32_PIN_NOE_PWM_CHANNEL, ESP32_PWM_FREQ, ESP32_PWM_RES);
-
-  // attach pin_noe to pwm channel
   ledcAttachPin(pin_noe, ESP32_PIN_NOE_PWM_CHANNEL);
+#endif
 #else
   digitalWrite(pin_noe, LOW);
   pinMode(pin_noe, OUTPUT);
