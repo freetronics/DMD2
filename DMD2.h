@@ -147,7 +147,7 @@ class DMDFrame
   void drawBox(unsigned int x1, unsigned int y1, unsigned int x2, unsigned int y2, DMDGraphicsMode mode=GRAPHICS_ON);
   void drawFilledBox(unsigned int x1, unsigned int y1, unsigned int x2, unsigned int y2, DMDGraphicsMode mode=GRAPHICS_ON);
   void drawTestPattern(DMDTestPattern pattern);
- 
+
   //flip panels
   void setFlipPanels(bool flPanels){ boolFlipPanels = flPanels; }
 

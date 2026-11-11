@@ -75,7 +75,7 @@ void DMDFrame::setPixel(unsigned int x, unsigned int y, DMDGraphicsMode mode)
 	  bool boolpar = ((height/PANEL_HEIGHT) % 2 == 0) ? true:false;
       int delY = y/PANEL_HEIGHT;
       int zvi = y % PANEL_HEIGHT;
-        if ((delY % 2 == 0)&& boolpar || (delY % 2 != 0)&& !boolpar ){ 
+        if ((delY % 2 == 0)&& boolpar || (delY % 2 != 0)&& !boolpar ){
           zvi = PANEL_HEIGHT-1 - zvi;
           y = (PANEL_HEIGHT*delY)+zvi;
           x = width-1 - x;
@@ -116,7 +116,7 @@ bool DMDFrame::getPixel(unsigned int x, unsigned int y)
 	  bool boolpar = ((height/PANEL_HEIGHT) % 2 == 0) ? true:false;
       int delY = y/PANEL_HEIGHT;
       int zvi = y % PANEL_HEIGHT;
-        if ((delY % 2 == 0)&& boolpar || (delY % 2 != 0)&& !boolpar ){ 
+        if ((delY % 2 == 0)&& boolpar || (delY % 2 != 0)&& !boolpar ){
           zvi = PANEL_HEIGHT-1 - zvi;
           y = (PANEL_HEIGHT*delY)+zvi;
           x = width-1 - x;
